@@ -1,22 +1,22 @@
 #pragma once
-#include "WSAInitializer.h"
-#include <string>
 #include <iostream>
 #include <map>
-#include <vector>
+#include <stdexcept>
+#include <iomanip>
+#include <sstream>
 #include <thread>
 #include <exception>
 #include <iostream>
 #include <fstream>
 #include <mutex>
 #include "Client.h"
+#include "helper.h"
 
 #pragma comment(lib, "ws2_32.lib")  // Add this lin
 
 #define PORT 12345
 #define BUFFER_SIZE 1024
 
-typedef std::vector<char> BUFFER;
 
 class Communicator {
 private:
@@ -36,15 +36,17 @@ public:
 
     void handleNewClient(SOCKET client_sock);
 
-    void sendData(const SOCKET sc, const BUFFER message);
-
-    BUFFER getPartFromSocket(const SOCKET sc, const int bytesNum);
-
-    BUFFER getPartFromSocket(const SOCKET sc, const int bytesNum, const int flags);
     std::string readFromFile(const std::string& filePath);
-    void updateFileOnServer(const std::string& filePath, const std::string& content);
-    void notifyAllClients(const std::string& updatedContent);
+    void updateFileOnServer(const std::string& filePath, const std::string& code, const std::string& action);
+    void notifyAllClients(const std::string& updatedContent, SOCKET client_sock);
     void startHandleRequests();
+
+
+    std::pair<std::string, std::string> deconstructReq(const std::string& req);
+
+    void insert(std::fstream& file, const std::string& insertionString);
+    void deleteContent(std::fstream& file, const std::string& action);
+    void replace(std::fstream& file, const std::string& action);
 
     std::string getFileContent() const {
         return m_fileContent;
