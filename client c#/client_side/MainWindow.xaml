@@ -5,9 +5,50 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:client_side"
         mc:Ignorable="d"
-                Title="Collaborative Text Editor" Height="350" Width="525">
+        Title="Collaborative Text Editor" Height="450" Width="800">
     <Grid>
-        <TextBox x:Name="txtFileContent" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Margin="10"/>
-        <Button Content="Save" VerticalAlignment="Top" Margin="0,293,0,0" Click="SaveButton_Click" RenderTransformOrigin="-8.351,0.743" Height="22" Width="37"/>
+        <Menu>
+            <MenuItem Header="_File">
+                <MenuItem Header="_New" />
+                <MenuItem Header="_Open" />
+                <MenuItem Header="_Save" />
+                <MenuItem Header="_Save As..." />
+                <Separator />
+                <MenuItem Header="_Exit" />
+            </MenuItem>
+            <MenuItem Header="_Edit">
+                <MenuItem Header="_Undo" />
+                <MenuItem Header="_Redo" />
+                <Separator />
+                <MenuItem Header="_Cut" />
+                <MenuItem Header="_Copy" />
+                <MenuItem Header="_Paste" />
+            </MenuItem>
+            <MenuItem Header="_View">
+                <MenuItem Header="_Zoom In" />
+                <MenuItem Header="_Zoom Out" />
+            </MenuItem>
+            <MenuItem Header="_Help">
+                <MenuItem Header="_About" />
+            </MenuItem>
+        </Menu>
+
+        <ToolBarTray>
+            <ToolBar>
+                <Button Content="New" />
+                <Button Content="Open" />
+                <Button Content="Save" Click="SaveButton_Click" />
+                <Separator />
+                <Button Content="Cut" />
+                <Button Content="Copy" />
+                <Button Content="Paste" />
+                <Separator />
+                <Button Content="Undo" />
+                <Button Content="Redo" />
+            </ToolBar>
+        </ToolBarTray>
+
+        <TextBox x:Name="txtFileContent" PreviewKeyDown="TextBoxInput_KeyDown" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Margin="5,30,5,5" TextChanged="txtFileContent_TextChanged" Cursor="Arrow"   Background="black"/>
+
     </Grid>
 </Window>

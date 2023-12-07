@@ -12,6 +12,18 @@ using System.Windows;
 
 namespace client_side
 {
+    enum MessageCodes
+    {
+        MC_INITIAL_REQUEST = 101, //requests
+        MC_INSERT_REQUEST = 102,
+        MC_DELETE_REQUEST = 103,
+        MC_REPLACE_REQUEST = 104,
+        MC_ERR_RESP = 200, //responses
+        MC_INITIAL_RESP = 201,
+        MC_INSERT_RESP = 202,
+        MC_DELETE_RESP = 203,
+        MC_REPLACE_RESP = 204
+    };
     public class Communicator
     {
         private Socket m_socket;
