@@ -3,11 +3,10 @@ using System.IO;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
-using System.Windows.Input;
 using System.Windows;
-using System.Windows.Documents;
-using System.Reflection;
-using Microsoft.VisualBasic;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
 
 namespace client_side
 {
@@ -17,6 +16,7 @@ namespace client_side
         private Communicator communicator;
         private bool isCapsLockPressed = false;
         private bool isBackspaceHandled = false;
+        public int UserId { get; set; }
 
         public MainWindow()
         {
@@ -37,6 +37,17 @@ namespace client_side
             try
             {
                 communicator = new Communicator(ip_port[0], int.Parse(ip_port[1]));
+
+                string receivedData = communicator.ReceiveData();
+
+                // Extract the message code from the received data
+                int receivedMessageCode = int.Parse(receivedData.Substring(0, 3));
+
+                if (receivedMessageCode == (int)MessageCodes.MC_CLIENT_ID)
+                {
+                    // Extract the assigned client ID
+                    UserId = int.Parse(receivedData.Substring(3));
+                }
 
                 ReceiveInitialContent();  // Receive initial content from the server
 
@@ -61,7 +72,7 @@ namespace client_side
                 // Use the Text property to get the content of the TextBox
                 string fileContent = txtFileContent.Text;
                 File.WriteAllText(filePath, fileContent);
-                MessageBox.Show("File saved successfully.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+                //MessageBox.Show("File saved successfully.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
@@ -92,7 +103,8 @@ namespace client_side
                     if (e.Key == Key.C)
                     {
                         // Ctrl+C (copy) is pressed
-                        CopySelectedText();
+                        //CopySelectedText();
+                        return;
                     }
                     else if (e.Key == Key.V)
                     {
@@ -104,8 +116,30 @@ namespace client_side
                         // Ctrl+X (cut) is pressed
                         cutSelectedText();
                     }
+                    else if (e.Key == Key.S) 
+                    {
+                        SaveFileContent();
+                        return;
+                    }
+                    else if (e.Key == Key.W)
+                    {
+                        // Ctrl+W is pressed
+                        // Close the window and send a disconnect message to the server
+                        DisconnectFromServer();
+                        Close();
+                        return;
+                    }
                 }
-                
+                else if (e.Key == Key.Enter)
+                {
+                    // Enter key is pressed
+                    HandleEnter();
+                }
+                else if (e.Key == Key.Tab)
+                {
+                    // Tab key is pressed
+                    HandleTab();
+                }
                 else if (e.Key == Key.Back)
                 {
                     e.Handled = true;
@@ -151,6 +185,78 @@ namespace client_side
             }
         }
 
+        private void HandleEnter()
+        {
+            try
+            {
+                // Handle Enter key press
+                int index = txtFileContent.SelectionStart;
+                string enterString = Environment.NewLine;
+
+                // Find the start of the current line
+                int lineStart = index;
+                while (lineStart > 0 && txtFileContent.Text[lineStart - 1] != '\n')
+                {
+                    lineStart--;
+                }
+
+                // Extract the current line
+                string currentLine = txtFileContent.Text.Substring(lineStart, index - lineStart);
+
+                // Update the local text to include the new line
+                string originalText = txtFileContent.Text;
+                string newText = originalText.Insert(index, enterString);
+                txtFileContent.Text = newText;
+
+                string code = ((int)MessageCodes.MC_INSERT_REQUEST).ToString();
+                LogAction($"{code}{enterString.Length:D5}{enterString}{index}");
+                communicator.SendData($"{code}{enterString.Length:D5}{enterString}{index}"); // Insert action
+
+                // Move the caret to the position after the inserted new line
+                txtFileContent.CaretIndex = index + enterString.Length;
+
+                // If there is text after the caret index, move it down with the new line
+                if (index < originalText.Length)
+                {
+                    string remainingText = originalText.Substring(index);
+                    txtFileContent.Text = newText + remainingText;
+                }
+
+                // Scroll to the next line after the current line
+                int nextLineStart = index + enterString.Length;
+                int nextLineEnd = nextLineStart;
+                while (nextLineEnd < originalText.Length && originalText[nextLineEnd] != '\n')
+                {
+                    nextLineEnd++;
+                }
+
+                int nextLineNumber = txtFileContent.GetLineIndexFromCharacterIndex(nextLineStart);
+                txtFileContent.ScrollToLine(nextLineNumber);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error handling Enter key: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+        private void HandleTab()
+        {
+            // Implement the logic to handle the Tab key press
+            // For example, you can insert a tab character at the current caret position
+            int index = txtFileContent.CaretIndex;
+            string tabString = "    ";
+
+            // Insert the tab character at the current caret position
+            txtFileContent.Text = txtFileContent.Text.Insert(index, tabString);
+
+            // Move the caret position after the inserted tab
+            txtFileContent.CaretIndex = index + tabString.Length;
+
+            // Send the Tab action to the server
+            string code = ((int)MessageCodes.MC_INSERT_REQUEST).ToString();
+            LogAction($"{code}{tabString.Length:D5}{tabString}{index}");
+            communicator.SendData($"{code}{tabString.Length:D5}{tabString}{index}");
+        }
+
         private void CopySelectedText()
         {
             // Copy the selected text to the clipboard
@@ -160,31 +266,46 @@ namespace client_side
         private void cutSelectedText()
         {
             // Copy the selected text to the clipboard
-            string selectedText = txtFileContent.SelectedText;
-            Clipboard.SetText(selectedText);
+            CopySelectedText();
 
             int index = txtFileContent.SelectionStart;
-            string clipboardContent = Clipboard.GetText();
-            //txtFileContent.Text = txtFileContent.Text.Remove(index, clipboardContent);
-            txtFileContent.CaretIndex = index - clipboardContent.Length;
+            int selectionLength = txtFileContent.SelectionLength;
+
+            string deletedText = txtFileContent.Text.Substring(index, selectionLength);
+            txtFileContent.Text = txtFileContent.Text.Remove(index, selectionLength);
 
             string code = ((int)MessageCodes.MC_DELETE_REQUEST).ToString();
-            LogAction($"{code}{clipboardContent.Length:D5}{index}");
-            communicator.SendData($"{code}{clipboardContent.Length:D5}{index}");
+            LogAction($"{code}{selectionLength:D5}{index}");
+            communicator.SendData($"{code}{selectionLength:D5}{index}"); // Delete action
+
+            // Maintain the cursor position
+            txtFileContent.CaretIndex = index;
         }
 
         private void PasteClipboardContent()
         {
             // Paste the clipboard content at the current caret position
-            int index = txtFileContent.SelectionStart;
+            int index = txtFileContent.CaretIndex;
             string clipboardContent = Clipboard.GetText();
-            //txtFileContent.Text = txtFileContent.Text.Insert(index, clipboardContent);
-            txtFileContent.CaretIndex = index + clipboardContent.Length;
 
-            // Send the paste action to the server as an insert
             string code = ((int)MessageCodes.MC_INSERT_REQUEST).ToString();
             LogAction($"{code}{clipboardContent.Length:D5}{clipboardContent}{index}");
-            communicator.SendData($"{code}{clipboardContent.Length:D5}{clipboardContent}{index}"); // Insert action
+            communicator.SendData($"{code}{clipboardContent.Length:D5}{clipboardContent}{index}");
+        }
+
+        private void DisconnectFromServer()
+        {
+            try
+            {
+                // Send a disconnect message to the server
+                string disconnectCode = ((int)MessageCodes.MC_DISCONNECT).ToString();
+                LogAction(disconnectCode);
+                communicator.SendData(disconnectCode);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error disconnecting from the server: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         private void HandleBackspace()
@@ -265,11 +386,44 @@ namespace client_side
                 case Key.D7:
                 case Key.D8:
                 case Key.D9:
+                    isShiftPressed = Keyboard.IsKeyDown(Key.LeftShift) || Keyboard.IsKeyDown(Key.RightShift);
+                    return isShiftPressed ? GetShiftedNumberChar(key) : (char)KeyInterop.VirtualKeyFromKey(key);
+
                 case Key.Space:
-                    return (char)KeyInterop.VirtualKeyFromKey(key);
+                    return ' ';
 
                 default:
                     return '\0'; // Invalid key
+            }
+        }
+
+        private char GetShiftedNumberChar(Key key)
+        {
+            // Map shifted numbers to their corresponding symbols
+            switch (key)
+            {
+                case Key.D0:
+                    return ')';
+                case Key.D1:
+                    return '!';
+                case Key.D2:
+                    return '@';
+                case Key.D3:
+                    return '#';
+                case Key.D4:
+                    return '$';
+                case Key.D5:
+                    return '%';
+                case Key.D6:
+                    return '^';
+                case Key.D7:
+                    return '&';
+                case Key.D8:
+                    return '*';
+                case Key.D9:
+                    return '(';
+                default:
+                    return '\0';
             }
         }
         private void ReceiveServerUpdates()
@@ -495,5 +649,6 @@ namespace client_side
                 txtFileContent.CaretIndex = Math.Max(0, txtFileContent.CaretIndex);
             }
         }
+
     }  
 }

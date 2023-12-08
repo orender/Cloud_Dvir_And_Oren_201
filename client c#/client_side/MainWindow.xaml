@@ -5,9 +5,10 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:client_side"
         mc:Ignorable="d"
-        Title="Collaborative Text Editor" Height="450" Width="800">
-    <Grid>
-        <Menu>
+        Title="Collaborative Text Editor" Height="600" Width="1000">
+    <Grid x:Name="mainGrid">
+        <Menu FontSize="16">
+            <!-- Adjusted FontSize for the Menu -->
             <MenuItem Header="_File">
                 <MenuItem Header="_New" />
                 <MenuItem Header="_Open" />
@@ -48,7 +49,15 @@
             </ToolBar>
         </ToolBarTray>
 
-        <TextBox x:Name="txtFileContent" PreviewKeyDown="TextBoxInput_KeyDown" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Margin="5,30,5,5" TextChanged="txtFileContent_TextChanged" Cursor="Arrow"   Background="black"/>
-
+        <TextBox x:Name="txtFileContent" 
+                 PreviewKeyDown="TextBoxInput_KeyDown" 
+                 VerticalScrollBarVisibility="Auto" 
+                 HorizontalScrollBarVisibility="Auto" 
+                 Margin="5,30,5,5" 
+                 TextChanged="txtFileContent_TextChanged" 
+                 Cursor="Arrow"   
+                 Background="black"
+                 FontSize="16">
+        </TextBox>
     </Grid>
 </Window>
