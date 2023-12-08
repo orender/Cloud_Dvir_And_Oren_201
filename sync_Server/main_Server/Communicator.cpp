@@ -40,13 +40,21 @@ void Communicator::handleNewClient(SOCKET client_sock)
     std::string msg;
     BUFFER buf;
     BUFFER rep;
-    Client* client_handler = new Client();
+    
+    int uniqueClientId = clientIdCounter.fetch_add(1);
+
+    Client* client_handler = new Client(uniqueClientId);
     m_clients[client_sock] = client_handler;
     std::string repCode;
 
     // Send the initial file content to the client when they join
     try
     {
+
+        // Send the client ID to the client
+        std::string idMessage = std::to_string(MC_CLIENT_ID) + std::to_string(uniqueClientId);
+        Helper::sendData(client_sock, BUFFER(idMessage.begin(), idMessage.end()));
+
         buf = Helper::getPartFromSocket(client_sock, 1024);
         std::string req(buf.begin(), buf.end());
 
@@ -85,6 +93,8 @@ void Communicator::handleNewClient(SOCKET client_sock)
             {
                 closesocket(client_sock);
                 run = false;
+                // Handle disconnection
+                handleClientDisconnect(client_sock);
                 continue;
             }
 
@@ -108,6 +118,11 @@ void Communicator::handleNewClient(SOCKET client_sock)
                     repCode = std::to_string(MC_REPLACE_RESP);
                     break;
 
+                case MC_DISCONNECT: // Handle disconnect request
+                    run = false;
+                    handleClientDisconnect(client_sock);
+                    continue;
+
                 default:
                     // Handle the default case or throw an error
                     throw std::runtime_error("Unknown action code: " + reqDetail.first);
@@ -122,11 +137,28 @@ void Communicator::handleNewClient(SOCKET client_sock)
         catch (...)
         {
             run = false;
+            // Handle disconnection
+            handleClientDisconnect(client_sock);
             continue;
         }
     }
 
     closesocket(client_sock);
+}
+
+// New method to handle client disconnection
+void Communicator::handleClientDisconnect(SOCKET client_sock)
+{
+    // Clean up resources and remove the client from the map
+    if (m_clients.find(client_sock) != m_clients.end())
+    {
+        delete m_clients[client_sock];
+        m_clients.erase(client_sock);
+    }
+
+    // Notify other clients about the disconnection
+    std::string disconnectMessage = std::to_string(MC_DISCONNECT) + "00000";
+    notifyAllClients(disconnectMessage, client_sock);
 }
 
 std::pair<std::string, std::string> Communicator::deconstructReq(const std::string& req) {

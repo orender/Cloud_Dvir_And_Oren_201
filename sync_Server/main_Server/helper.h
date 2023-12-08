@@ -16,6 +16,8 @@ enum MessageCodes
     MC_INSERT_RESP = 202,
     MC_DELETE_RESP = 203,
     MC_REPLACE_RESP = 204,
+    MC_DISCONNECT = 300, //user
+    MC_CLIENT_ID = 301
 };
 
 class Helper

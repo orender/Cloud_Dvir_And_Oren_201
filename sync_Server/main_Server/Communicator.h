@@ -21,6 +21,7 @@
 class Communicator {
 private:
     SOCKET m_serverSocket;
+    std::atomic<int> clientIdCounter;  // Atomic counter for generating unique client IDs
     std::map<SOCKET, Client*> m_clients; // Replace '/*client_handler_type*/' with the actual type
     std::mutex m_fileMutex;
     std::string m_file_name = "test.txt";
@@ -47,6 +48,8 @@ public:
     void insert(std::fstream& file, const std::string& insertionString);
     void deleteContent(std::fstream& file, const std::string& action);
     void replace(std::fstream& file, const std::string& action);
+
+    void handleClientDisconnect(SOCKET client_sock);
 
     std::string getFileContent() const {
         return m_fileContent;
