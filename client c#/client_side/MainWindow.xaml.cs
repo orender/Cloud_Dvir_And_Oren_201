@@ -65,26 +65,6 @@ namespace client_side
             }
         }
 
-        private void SaveFileContent()
-        {
-            try
-            {
-                // Use the Text property to get the content of the TextBox
-                string fileContent = txtFileContent.Text;
-                File.WriteAllText(filePath, fileContent);
-                //MessageBox.Show("File saved successfully.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error saving file content: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
-
-        private void SaveButton_Click(object sender, RoutedEventArgs e)
-        {
-            SaveFileContent();
-        }
-
         private void TextBoxInput_KeyDown(object sender, KeyEventArgs e)
         {
             try
@@ -109,7 +89,7 @@ namespace client_side
                     else if (e.Key == Key.V)
                     {
                         // Ctrl+V (paste) is pressed
-                        PasteClipboardContent();
+                        PasteClipboardContent(false);
                     }
                     else if (e.Key == Key.X)
                     {
@@ -185,59 +165,32 @@ namespace client_side
             }
         }
 
+
+        //           ******** Handlers ********* 
         private void HandleEnter()
         {
             try
             {
-                // Handle Enter key press
-                int index = txtFileContent.SelectionStart;
-                string enterString = Environment.NewLine;
+                // Get the current caret index
+                int index = txtFileContent.CaretIndex;
 
-                // Find the start of the current line
-                int lineStart = index;
-                while (lineStart > 0 && txtFileContent.Text[lineStart - 1] != '\n')
-                {
-                    lineStart--;
-                }
-
-                // Extract the current line
-                string currentLine = txtFileContent.Text.Substring(lineStart, index - lineStart);
-
-                // Update the local text to include the new line
-                string originalText = txtFileContent.Text;
-                string newText = originalText.Insert(index, enterString);
-                txtFileContent.Text = newText;
-
-                string code = ((int)MessageCodes.MC_INSERT_REQUEST).ToString();
-                LogAction($"{code}{enterString.Length:D5}{enterString}{index}");
-                communicator.SendData($"{code}{enterString.Length:D5}{enterString}{index}"); // Insert action
+                // Insert a new line at the caret position
+                txtFileContent.Text = txtFileContent.Text.Insert(index, Environment.NewLine);
 
                 // Move the caret to the position after the inserted new line
-                txtFileContent.CaretIndex = index + enterString.Length;
+                txtFileContent.CaretIndex = index + Environment.NewLine.Length;
 
-                // If there is text after the caret index, move it down with the new line
-                if (index < originalText.Length)
-                {
-                    string remainingText = originalText.Substring(index);
-                    txtFileContent.Text = newText + remainingText;
-                }
-
-                // Scroll to the next line after the current line
-                int nextLineStart = index + enterString.Length;
-                int nextLineEnd = nextLineStart;
-                while (nextLineEnd < originalText.Length && originalText[nextLineEnd] != '\n')
-                {
-                    nextLineEnd++;
-                }
-
-                int nextLineNumber = txtFileContent.GetLineIndexFromCharacterIndex(nextLineStart);
-                txtFileContent.ScrollToLine(nextLineNumber);
+                // Send the server a message about the Enter key press
+                string code = ((int)MessageCodes.MC_INSERT_REQUEST).ToString();
+                LogAction($"{code}{Environment.NewLine.Length:D5}{Environment.NewLine}{index}");
+                communicator.SendData($"{code}{Environment.NewLine.Length:D5}{Environment.NewLine}{index}");
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"Error handling Enter key: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
+
         private void HandleTab()
         {
             // Implement the logic to handle the Tab key press
@@ -263,6 +216,24 @@ namespace client_side
             string selectedText = txtFileContent.SelectedText;
             Clipboard.SetText(selectedText);
         }
+
+        private void PasteClipboardContent(bool isButton)
+        {
+            // Paste the clipboard content at the current caret position
+            int index = txtFileContent.CaretIndex;
+            string clipboardContent = Clipboard.GetText();
+
+            if (isButton) // if its comming from the button press it wont insert it automaticly
+            {
+                txtFileContent.Text = txtFileContent.Text.Insert(index, clipboardContent);
+                txtFileContent.CaretIndex = index + clipboardContent.Length;
+            }
+
+            string code = ((int)MessageCodes.MC_INSERT_REQUEST).ToString();
+            LogAction($"{code}{clipboardContent.Length:D5}{clipboardContent}{index}");
+            communicator.SendData($"{code}{clipboardContent.Length:D5}{clipboardContent}{index}");
+        }
+
         private void cutSelectedText()
         {
             // Copy the selected text to the clipboard
@@ -280,17 +251,6 @@ namespace client_side
 
             // Maintain the cursor position
             txtFileContent.CaretIndex = index;
-        }
-
-        private void PasteClipboardContent()
-        {
-            // Paste the clipboard content at the current caret position
-            int index = txtFileContent.CaretIndex;
-            string clipboardContent = Clipboard.GetText();
-
-            string code = ((int)MessageCodes.MC_INSERT_REQUEST).ToString();
-            LogAction($"{code}{clipboardContent.Length:D5}{clipboardContent}{index}");
-            communicator.SendData($"{code}{clipboardContent.Length:D5}{clipboardContent}{index}");
         }
 
         private void DisconnectFromServer()
@@ -426,6 +386,7 @@ namespace client_side
                     return '\0';
             }
         }
+
         private void ReceiveServerUpdates()
         {
             try
@@ -453,7 +414,8 @@ namespace client_side
                         case "204": // MC_REPLACE_RESP
                             HandleReplaceResponse(update);
                             break;
-                        // Add more cases as needed for other message types
+                        case "300": // MC_DISCONNECT
+                            break; // TODO inform the client about him leaving
 
                         default:
                             throw new InvalidOperationException($"Unknown message code: {code}");
@@ -622,14 +584,30 @@ namespace client_side
             }
         }
 
+        private void SaveFileContent()
+        {
+            try
+            {
+                // Use the Text property to get the content of the TextBox
+                string fileContent = txtFileContent.Text;
+                File.WriteAllText(filePath, fileContent);
+                //MessageBox.Show("File saved successfully.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error saving file content: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
         private void LogAction(string action)
         {
             try
             {
-                string logFilePath = "log.txt";
+                string logFilePath = "UserLog.txt";
 
                 // Append the action to the log file
                 File.AppendAllText(logFilePath, $"{DateTime.Now}: {action}\n");
+                //File.AppendAllText(logFilePath, $"{action}\n"); // - just the msg without date
             }
             catch (Exception ex)
             {
@@ -650,5 +628,25 @@ namespace client_side
             }
         }
 
+        //           ******** Buttons ********* 
+        private void SaveButton_Click(object sender, RoutedEventArgs e)
+        {
+            SaveFileContent();
+        }
+
+        private void CopyButton_Click(object sender, RoutedEventArgs e)
+        {
+            CopySelectedText();
+        }
+
+        private void PasteButton_Click(object sender, RoutedEventArgs e)
+        {
+            PasteClipboardContent(true);
+        }
+
+        private void CutButton_Click(object sender, RoutedEventArgs e)
+        {
+            cutSelectedText();
+        }
     }  
 }

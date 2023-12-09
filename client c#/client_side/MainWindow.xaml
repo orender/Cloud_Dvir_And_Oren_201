@@ -38,11 +38,11 @@
             <ToolBar>
                 <Button Content="New" />
                 <Button Content="Open" />
-                <Button Content="Save" Click="SaveButton_Click" />
+                <Button Content="Save"  Click="SaveButton_Click" />
                 <Separator />
-                <Button Content="Cut" />
-                <Button Content="Copy" />
-                <Button Content="Paste" />
+                <Button Content="Cut"   Click="CutButton_Click" />
+                <Button Content="Copy"  Click="CopyButton_Click" />
+                <Button Content="Paste" Click="PasteButton_Click" />
                 <Separator />
                 <Button Content="Undo" />
                 <Button Content="Redo" />
