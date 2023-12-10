@@ -104,6 +104,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -130,6 +131,7 @@
     <ClCompile Include="Client.cpp" />
     <ClCompile Include="Communicator.cpp" />
     <ClCompile Include="helper.cpp" />
+    <ClCompile Include="Operations.cpp" />
     <ClCompile Include="Source.cpp" />
     <ClCompile Include="WSAInitializer.cpp" />
   </ItemGroup>
@@ -137,6 +139,7 @@
     <ClInclude Include="Client.h" />
     <ClInclude Include="Communicator.h" />
     <ClInclude Include="helper.h" />
+    <ClInclude Include="Operations.h" />
     <ClInclude Include="WSAInitializer.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

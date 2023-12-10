@@ -10,3 +10,13 @@ Client::~Client()
 int Client::getId() const {
     return id;
 }
+
+std::string Client::getFileName() const
+{
+    return file_name;
+}
+
+void Client::setFileName(const std::string newName)
+{
+    file_name = newName;
+}
