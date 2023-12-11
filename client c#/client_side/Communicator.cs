@@ -26,6 +26,12 @@ namespace client_side
         MC_CREATE_FILE_REQUEST = 105,
         MC_GET_FILES_REQUEST = 106,
         MC_CLOSE_FILE_REQUEST = 108,
+        MC_GET_MESSAGES_REQUEST = 109,
+        MC_GET_USERS_REQUEST = 110,
+        MC_POST_MSG_REQUEST = 111,
+        MC_JOIN_FILE_REQUEST = 112,
+        MC_LEAVE_FILE_REQUEST = 113,
+        
         MC_ERR_RESP = 200, //responses
         MC_INITIAL_RESP = 201,
         MC_INSERT_RESP = 202,
@@ -34,6 +40,12 @@ namespace client_side
         MC_CREATE_FILE_RESP = 205,
         MC_GET_FILES_RESP = 206,
         MC_CLOSE_FILE_RESP = 208,
+        MC_GET_MESSAGES_RESP = 209,
+        MC_GET_USERS_RESP = 210,
+        MC_POST_MSG_RESP = 211,
+        MC_JOIN_FILE_RESP = 212,
+        MC_LEAVE_FILE_RESP = 213,
+
         MC_DISCONNECT = 300, //user
         MC_CLIENT_ID = 301
 
@@ -61,6 +73,7 @@ namespace client_side
 
         public void SendData(string message)
         {
+            LogAction(message);
             byte[] data = Encoding.UTF8.GetBytes(message);
             m_socket.Send(data);
         }
@@ -69,7 +82,9 @@ namespace client_side
         {
             byte[] buffer = new byte[1024];  // Adjust the buffer size as needed
             int bytesRead = m_socket.Receive(buffer);
-            return Encoding.UTF8.GetString(buffer, 0, bytesRead);
+            string rep = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+            LogAction(rep);
+            return rep;
         }
 
         public string ReceiveDataWithTimeout(TimeSpan timeout)
@@ -112,7 +127,7 @@ namespace client_side
         {
             try
             {
-                string logFilePath = "UserLog.txt";
+                string logFilePath = "UserLog" + UserId.ToString() + ".txt";
 
                 // Append the action to the log file
                 File.AppendAllText(logFilePath, $"{DateTime.Now}: {action}\n");

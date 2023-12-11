@@ -33,11 +33,9 @@ namespace client_side
             if (txtFileName.Text.Length > 0)
             {
                 string code = ((int)MessageCodes.MC_CREATE_FILE_REQUEST).ToString();
-                communicator.LogAction($"{code}{txtFileName.Text}.txt");
-                communicator.SendData($"{code}{txtFileName.Text}.txt");
+                communicator.SendData($"{code}{txtFileName.Text}");
 
                 string update = communicator.ReceiveData();
-                communicator.LogAction($"{update}");
                 string rep = update.Substring(0, 3);
 
                 if (rep == ((int)MessageCodes.MC_CREATE_FILE_RESP).ToString())

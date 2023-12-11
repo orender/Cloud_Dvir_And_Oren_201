@@ -69,9 +69,11 @@ namespace client_side
 
                 backgroundWorker.CancelAsync();
                 cancellationTokenSource.Cancel();
+                string code = ((int)MessageCodes.MC_JOIN_FILE_REQUEST).ToString();
+                communicator.SendData($"{code}{FileName.Length:D5}{FileName}{communicator.UserId}");
                 TextEditor TextEditorWindow = new TextEditor(communicator, FileName);
                 TextEditorWindow.Show();
-
+                
                 Close();
             }
         }
@@ -88,13 +90,11 @@ namespace client_side
             while (!worker.CancellationPending && !cancellationTokenSource.Token.IsCancellationRequested)
             {
                 string code = ((int)MessageCodes.MC_GET_FILES_REQUEST).ToString();
-                communicator.LogAction($"{code}");
                 communicator.SendData($"{code}");
 
                 string rep = communicator.ReceiveData();
-                communicator.LogAction($"{rep}");
                 string repCode = rep.Substring(0, 3);
-                if (repCode == ((int)MessageCodes.MC_GET_FILES_RESP).ToString())
+                if (repCode == ((int)MessageCodes.MC_GET_FILES_RESP).ToString() && rep.Length > 3)
                 {
                     string[] receivedFileNames = rep.Substring(3).Split(';');
 

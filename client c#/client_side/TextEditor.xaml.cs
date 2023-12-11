@@ -1,4 +1,6 @@
-﻿using System;
+﻿using Microsoft.VisualBasic;
+using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
 using System.Reflection;
@@ -21,8 +23,6 @@ namespace client_side
         private Thread receiveServerUpdatesThread;
         private bool isCapsLockPressed = false;
         private bool isBackspaceHandled = false;
-        public int UserId { get; set; }
-
         public TextEditor(Communicator communicator, string fileName)
         {
             InitializeComponent();
@@ -33,7 +33,8 @@ namespace client_side
             try
             {
                 ReceiveInitialContent(fileName);  // Receive initial content from the server
-
+                ReceiveInitialChat(fileName);     // Receive initial content from the server
+                ReceiveInitialUsers(fileName);    // Receive initial content from the server
                 // Start the thread to receive updates from the server
                 cancellationTokenSource = new CancellationTokenSource();
                 receiveServerUpdatesThread = new Thread(() => ReceiveServerUpdates())
@@ -130,7 +131,6 @@ namespace client_side
                         txtFileContent.Text = txtFileContent.Text.Remove(index, selectionLength);
 
                         code = ((int)MessageCodes.MC_REPLACE_REQUEST).ToString();
-                        communicator.LogAction($"{code}{selectionLength:D5}{replacementText.ToString().Length:D5}{replacementText}{index}");
                         communicator.SendData($"{code}{selectionLength:D5}{replacementText.ToString().Length:D5}{replacementText}{index}"); // Replace action
                         txtFileContent.CaretIndex = index;
                     }
@@ -143,7 +143,6 @@ namespace client_side
                             string inputString = inputChar.ToString();
 
                             code = ((int)MessageCodes.MC_INSERT_REQUEST).ToString();
-                            communicator.LogAction($"{code}{inputString.Length:D5}{inputString}{index}");
                             communicator.SendData($"{code}{inputString.Length:D5}{inputString}{index}"); // Insert action
                         }
                     }
@@ -173,7 +172,6 @@ namespace client_side
 
                     // Send the replace action to the server
                     string code = ((int)MessageCodes.MC_REPLACE_REQUEST).ToString();
-                    communicator.LogAction($"{code}{selectionLength:D5}{Environment.NewLine.Length:D5}{Environment.NewLine}{index}");
                     communicator.SendData($"{code}{selectionLength:D5}{Environment.NewLine.Length:D5}{Environment.NewLine}{index}");
 
                     // Set the caret index to the position after the inserted new line
@@ -189,7 +187,6 @@ namespace client_side
 
                     // Send the server a message about the Enter key press
                     string code = ((int)MessageCodes.MC_INSERT_REQUEST).ToString();
-                    communicator.LogAction($"{code}{Environment.NewLine.Length:D5}{Environment.NewLine}{index}");
                     communicator.SendData($"{code}{Environment.NewLine.Length:D5}{Environment.NewLine}{index}");
                 }
             }
@@ -214,7 +211,6 @@ namespace client_side
 
             // Send the Tab action to the server
             string code = ((int)MessageCodes.MC_INSERT_REQUEST).ToString();
-            communicator.LogAction($"{code}{tabString.Length:D5}{tabString}{index}");
             communicator.SendData($"{code}{tabString.Length:D5}{tabString}{index}");
         }
 
@@ -238,7 +234,6 @@ namespace client_side
             }
 
             string code = ((int)MessageCodes.MC_INSERT_REQUEST).ToString();
-            communicator.LogAction($"{code}{clipboardContent.Length:D5}{clipboardContent}{index}");
             communicator.SendData($"{code}{clipboardContent.Length:D5}{clipboardContent}{index}");
         }
 
@@ -254,7 +249,6 @@ namespace client_side
             txtFileContent.Text = txtFileContent.Text.Remove(index, selectionLength);
 
             string code = ((int)MessageCodes.MC_DELETE_REQUEST).ToString();
-            communicator.LogAction($"{code}{selectionLength:D5}{index}");
             communicator.SendData($"{code}{selectionLength:D5}{index}"); // Delete action
 
             // Maintain the cursor position
@@ -267,7 +261,6 @@ namespace client_side
             {
                 // Send a disconnect message to the server
                 string disconnectCode = ((int)MessageCodes.MC_DISCONNECT).ToString();
-                communicator.LogAction(disconnectCode);
                 communicator.SendData(disconnectCode);
             }
             catch (Exception ex)
@@ -278,10 +271,7 @@ namespace client_side
 
         private void CloseFile(string req)
         {
-            communicator.LogAction($"{((int)MessageCodes.MC_CLOSE_FILE_REQUEST).ToString()}" +
-                            $"{filePath.Length:D5}{filePath}{communicator.UserId}");
-
-            communicator.SendData($"{((int)MessageCodes.MC_CLOSE_FILE_REQUEST).ToString()}" +
+            communicator.SendData($"{((int)MessageCodes.MC_LEAVE_FILE_REQUEST).ToString()}" +
                 $"{filePath.Length:D5}{filePath}{communicator.UserId}");
 
             cancellationTokenSource?.Cancel();
@@ -310,6 +300,7 @@ namespace client_side
                 Close();
             }
         }
+
         private void HandleBackspace()
         {
             int index = txtFileContent.SelectionStart;
@@ -323,7 +314,6 @@ namespace client_side
                 string deletedText = txtFileContent.Text.Substring(index, selectionLength);
                 txtFileContent.Text = txtFileContent.Text.Remove(index, selectionLength);
 
-                communicator.LogAction($"{code}{selectionLength:D5}{index}");
                 communicator.SendData($"{code}{selectionLength:D5}{index}"); // Delete action
 
                 // Maintain the cursor position
@@ -331,14 +321,29 @@ namespace client_side
             }
             else if (index > 0)
             {
-                // Delete a single character at the current index
-                txtFileContent.Text = txtFileContent.Text.Remove(index - 1, 1);
+                // Check if it's the beginning of the line
+                int lineStartIndex = txtFileContent.Text.LastIndexOf(Environment.NewLine, index - 1) + 1;
 
-                communicator.LogAction($"{code}00001{index - 1}");
-                communicator.SendData($"{code}00001{index - 1}"); // Delete action with length 1
-                // Maintain the cursor position
-                txtFileContent.CaretIndex = index - 1;
+                if (index == lineStartIndex)
+                {
+                    // Delete the entire line
+                    string deletedLine = txtFileContent.Text.Substring(lineStartIndex, index - lineStartIndex);
+                    txtFileContent.Text = txtFileContent.Text.Remove(lineStartIndex, index - lineStartIndex);
 
+                    communicator.SendData($"{code}{deletedLine.Length:D5}{lineStartIndex}"); // Delete action for the entire line
+
+                    // Maintain the cursor position
+                    txtFileContent.CaretIndex = lineStartIndex;
+                }
+                else
+                {
+                    // Delete a single character at the current index
+                    txtFileContent.Text = txtFileContent.Text.Remove(index - 1, 1);
+
+                    communicator.SendData($"{code}00001{index - 1}"); // Delete action with length 1
+                                                                      // Maintain the cursor position
+                    txtFileContent.CaretIndex = index - 1;
+                }
             }
         }
 
@@ -440,9 +445,7 @@ namespace client_side
                     // Receive update from the server
                     string update = communicator.ReceiveData();
 
-                    // Parse the update message and update the TextBox accordingly
-                    communicator.LogAction($"{update}");
-
+                    
                     string code = update.Substring(0, 3); // Assuming the message code is always 3 characters
 
                     switch (code)
@@ -458,6 +461,19 @@ namespace client_side
                         case "204": // MC_REPLACE_RESP
                             HandleReplaceResponse(update);
                             break;
+
+                        case "211": // MC_POST_MSG_RESP
+                            HandlePostMessageResponse(update);
+                            break;
+
+                        case "212": // MC_JOIN_FILE_RESP
+                            HandleJoinFileResponse(update);
+                            break;
+
+                        case "213": // MC_LEAVE_FILE_RESP
+                            HandleLeaveFileResponse(update);
+                            break;
+
                         case "300": // MC_DISCONNECT
                             break; // TODO inform the client about him leaving
 
@@ -589,6 +605,63 @@ namespace client_side
             });
         }
 
+        private void HandlePostMessageResponse(string update)
+        {
+            try
+            {
+                int messageCodeLength = 3;
+                string messageCode = update.Substring(0, messageCodeLength);
+
+                int messageLength = int.Parse(update.Substring(3, 5));
+
+                int messageTextIndex = 8;
+                string messageText = update.Substring(messageTextIndex, messageLength);
+
+                int userIdIndex = 8 + messageLength; 
+                int userId = int.Parse(update.Substring(userIdIndex, 5));
+
+                AppendChatMessage($"{userId}: {messageText}");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error handling PostMessage response: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void HandleJoinFileResponse(string update)
+        {
+            try
+            {
+                // Assuming the message format is "212{id}"
+                int userIdIndex = 3;
+                int userId = int.Parse(update.Substring(userIdIndex));
+
+                // Process the join file response as needed (e.g., update UI)
+                Dispatcher.Invoke(() => lstUserList.Items.Add(userId.ToString()));
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error handling Join File response: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void HandleLeaveFileResponse(string update)
+        {
+            try
+            {
+                // Assuming the message format is "213{id}"
+                int userIdIndex = 3;
+                int userId = int.Parse(update.Substring(userIdIndex, 5));
+
+                // Process the leave file response as needed (e.g., update UI)
+                Dispatcher.Invoke(() => lstUserList.Items.Remove(userId.ToString()));
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error handling Leave File response: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
         private void ReceiveInitialContent(string fileName)
         {
             try
@@ -596,9 +669,9 @@ namespace client_side
                 string code = ((int)MessageCodes.MC_INITIAL_REQUEST).ToString();
                 communicator.SendData($"{code}{fileName}");
                 string initialContent = communicator.ReceiveData();
-                communicator.LogAction(initialContent);
                 string codeString = initialContent.Substring(0, 3);
-                if (codeString == ((int)MessageCodes.MC_INITIAL_RESP).ToString())
+                if (codeString == ((int)MessageCodes.MC_INITIAL_RESP).ToString() &&
+                    initialContent.Length > 3)
                 {
                     initialContent = initialContent.Substring(3);
 
@@ -629,6 +702,83 @@ namespace client_side
             }
         }
 
+        private void ReceiveInitialUsers(string fileName)
+        {
+            try
+            {
+                string code = ((int)MessageCodes.MC_GET_USERS_REQUEST).ToString();
+                communicator.SendData($"{code}{fileName}");
+                string initialContent = communicator.ReceiveData();
+                string codeString = initialContent.Substring(0, 3);
+
+                if (codeString == ((int)MessageCodes.MC_GET_USERS_RESP).ToString() &&
+                    initialContent.Length > 3)
+                {
+                    List<string> users = new List<string>();
+
+                    // Extract each user from the response
+                    for (int i = 3; i < initialContent.Length; i += 5)
+                    {
+                        int userId = int.Parse(initialContent.Substring(i, 5));
+                        users.Add(userId.ToString());
+                    }
+
+                    // Update the user list in the UI
+                    UpdateUserList(users);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error handling GetUsers response: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void ReceiveInitialChat(string fileName)
+        {
+            try
+            {
+                int newLength = fileName.Length - 4;
+                string stringWithoutLast4Chars = fileName.Substring(0, newLength);
+                string code = ((int)MessageCodes.MC_GET_MESSAGES_REQUEST).ToString();
+                communicator.SendData($"{code}{stringWithoutLast4Chars}");
+                string initialContent = communicator.ReceiveData();
+                string codeString = initialContent.Substring(0, 3);
+                if (codeString == ((int)MessageCodes.MC_GET_MESSAGES_RESP).ToString() &&
+                    initialContent.Length > 3)
+                {
+                    int currentIndex = 3;
+
+                    while (currentIndex < initialContent.Length)
+                    {
+                        // Extract data length for each message
+                        int dataLength = int.Parse(initialContent.Substring(currentIndex, 5));
+                        currentIndex += 5;
+
+                        // Extract data from the response
+                        string data = initialContent.Substring(currentIndex, dataLength);
+                        currentIndex += dataLength;
+
+                        // Extract user ID for each message
+                        int userId = int.Parse(initialContent.Substring(currentIndex, 5));
+                        currentIndex += 5;
+
+                        if (userId == communicator.UserId)
+                        {
+                            AppendChatMessage($"You: {data}");
+                        }
+                        else
+                        {
+                            AppendChatMessage($"{userId}: {data}");
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error handling GetMessages response: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
         private void SaveFileContent()
         {
             try
@@ -655,6 +805,88 @@ namespace client_side
                 txtFileContent.CaretIndex = Math.Max(0, txtFileContent.CaretIndex);
             }
         }
+
+        //           ******** Chat ********* 
+
+        private void TxtChatInput_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
+            {
+                // Handle sending chat messages
+                string chatMessage = txtChatInput.Text;
+                if (!string.IsNullOrEmpty(chatMessage.Trim()))
+                {
+                    // You can send the chat message to the server and update the UI as needed
+                    SendChatMessage(chatMessage);
+
+                    // Clear the input TextBox after sending the message
+                    txtChatInput.Clear();
+                }
+            }
+        }
+
+        private void SendChatMessage(string message)
+        {
+            try
+            {
+                string chatMessageCode = ((int)MessageCodes.MC_POST_MSG_REQUEST).ToString();
+
+                // Get the length of the message
+                int messageLength = message.Length;
+
+                // Get the user ID (you may need to replace this with the actual user ID logic)
+                int userId = communicator.UserId; // Assuming you have a property UserId in your class
+
+                int newLength = filePath.Length - 4;
+                string stringWithoutLast4Chars = filePath.Substring(0, newLength);
+
+                // Construct the message to be sent to the server
+                string fullMessage = $"{chatMessageCode}{stringWithoutLast4Chars.Length:D5}" +
+                    $"{stringWithoutLast4Chars}{messageLength:D5}{message}{userId:D5}";
+
+                communicator.SendData(fullMessage);
+
+                // Update the UI with the sent message
+                AppendChatMessage($"You: {message}");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error sending chat message: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void AppendChatMessage(string message)
+        {
+            // Append the chat message to the txtChat TextBox
+            Dispatcher.Invoke(() =>
+            {
+                if (string.IsNullOrEmpty(txtChat.Text))
+                {
+                    txtChat.AppendText(message);
+                }
+                else
+                {
+                    txtChat.AppendText(Environment.NewLine + message);
+                }
+                txtChat.ScrollToEnd(); // Scroll to the end to show the latest message
+            });
+        }
+
+        private void UpdateUserList(IEnumerable<string> userList)
+        {
+            // Clear the current user list
+            Dispatcher.Invoke(() => lstUserList.Items.Clear());
+
+            // Add the updated user list
+            Dispatcher.Invoke(() =>
+            {
+                foreach (var user in userList)
+                {
+                    lstUserList.Items.Add(user);
+                }
+            });
+        }
+
 
         //           ******** Buttons ********* 
         private void SaveButton_Click(object sender, RoutedEventArgs e)
