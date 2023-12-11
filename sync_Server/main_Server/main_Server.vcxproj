@@ -130,6 +130,7 @@
   <ItemGroup>
     <ClCompile Include="Client.cpp" />
     <ClCompile Include="Communicator.cpp" />
+    <ClCompile Include="FileOperation.cpp" />
     <ClCompile Include="helper.cpp" />
     <ClCompile Include="Operations.cpp" />
     <ClCompile Include="Source.cpp" />
@@ -138,6 +139,7 @@
   <ItemGroup>
     <ClInclude Include="Client.h" />
     <ClInclude Include="Communicator.h" />
+    <ClInclude Include="FileOperation.h" />
     <ClInclude Include="helper.h" />
     <ClInclude Include="Operations.h" />
     <ClInclude Include="WSAInitializer.h" />

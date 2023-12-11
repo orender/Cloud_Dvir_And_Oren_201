@@ -15,6 +15,7 @@
 #include "Client.h"
 #include "helper.h"
 #include "Operations.h"
+#include "FileOperation.h"
 
 namespace fs = std::filesystem;
 
@@ -35,6 +36,8 @@ struct Action
     long long timestamp; // Timestamp indicating when the action was created
 
     std::string fileName;
+    std::string fileNameLength;
+
     std::string msg;
     int size;
     int userId;
@@ -49,10 +52,9 @@ private:
     std::map<std::string, std::vector<Client>> m_usersOnFile; // fileName : users
     std::vector<std::string> m_files;
     std::mutex m_fileMutex;
-    std::string m_file_name = "test.txt";
-    std::string m_fileContent;
 
     Operations operationHandler;
+    FileOperation fileOperationHandler;
 public:
     // Constructor
     Communicator();
@@ -64,13 +66,10 @@ public:
 
     void handleNewClient(SOCKET client_sock);
 
-    std::string readFromFile(const std::string& filePath);
     void updateFileOnServer(const std::string& filePath, const Action& reqDetail);
+    void updateChatFileOnServer(const std::string& filePath, const Action& reqDetail);
     void notifyAllClients(const std::string& updatedContent, SOCKET client_sock);
     void startHandleRequests();
-    bool fileExists(const std::string& fileName);
-    void createFile(const std::string& fileName);
-    void getFilesInDirectory(const std::string& directoryPath);
 
     Action deconstructReq(const std::string& req);
     Action adjustIndexForSync(const std::string& fileName, Action reqDetail);
@@ -78,9 +77,5 @@ public:
     void handleClientDisconnect(SOCKET client_sock);
 
     long long getCurrentTimestamp();
-
-    std::string getFileContent() const {
-        return m_fileContent;
-    }
 
 };

@@ -83,14 +83,12 @@ void Communicator::handleNewClient(SOCKET client_sock)
             std::string newRequest(buf.begin(), buf.end());
             Action emptyAction;
 
-            {
-                // Lock the mutex before updating the file
-                std::lock_guard<std::mutex> lock(m_fileMutex);
+            
                 Action reqDetail = deconstructReq(newRequest);
                 reqDetail.userId = m_clients[client_sock]->getId();
                 switch (reqDetail.code)
                 {
-                case MC_INSERT_REQUEST:
+                case MC_INSERT_REQUEST:                    
                     repCode = std::to_string(MC_INSERT_RESP);
                     break;
 
@@ -104,15 +102,13 @@ void Communicator::handleNewClient(SOCKET client_sock)
 
                 case MC_INITIAL_REQUEST:
                     repCode = std::to_string(MC_INITIAL_RESP);
-                    fileContent = readFromFile(".\\files\\" + reqDetail.data);
+                    fileContent = fileOperationHandler.readFromFile(".\\files\\" + reqDetail.data);
                     // Convert the length to a string with exactly 5 digits
                     lengthString = std::to_string(fileContent.length());
                     lengthString = std::string(5 - lengthString.length(), '0') + lengthString;
 
-                    m_clients[client_sock]->setFileName(reqDetail.data);
                     emptyAction.code = MC_INITIAL_REQUEST;
                     m_lastActionMap[reqDetail.data] = emptyAction;
-                    m_usersOnFile[reqDetail.data].push_back(*m_clients[client_sock]);
 
                     // Create the initialFileContent string
                     initialFileContent = repCode + lengthString + fileContent;
@@ -121,7 +117,7 @@ void Communicator::handleNewClient(SOCKET client_sock)
                     break;
                 case MC_CREATE_FILE_REQUEST:
                     // Check if the file with the specified name exists
-                    if (fileExists(".\\files\\" + reqDetail.data))
+                    if (fileOperationHandler.fileExists(".\\files\\" + reqDetail.data + ".txt"))
                     {
                         // File already exists, send an appropriate response code
                         repCode = std::to_string(MC_ERR_RESP);
@@ -132,30 +128,71 @@ void Communicator::handleNewClient(SOCKET client_sock)
                     {
                         // File doesn't exist, create it and send a success response code
                         repCode = std::to_string(MC_CREATE_FILE_RESP);
-                        createFile(".\\files\\" + reqDetail.data);
+                        fileOperationHandler.createFile(".\\files\\" + reqDetail.data + ".txt", true);
+                        fileOperationHandler.createFile(".\\chats\\" + reqDetail.data
+                            + "_chat.txt", false); // Create the chat file
+
                         Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
                         send = false;
-                        m_clients[client_sock]->setFileName(reqDetail.data);
+
+                        m_clients[client_sock]->setFileName(".\\files\\" + reqDetail.data + ".txt");
                         emptyAction.code = MC_CREATE_FILE_REQUEST;
-                        m_lastActionMap[reqDetail.data] = emptyAction;
-                        m_usersOnFile[reqDetail.data].push_back(*m_clients[client_sock]);
+                        m_lastActionMap[".\\files\\" + reqDetail.data + ".txt"] = emptyAction;
+                        m_usersOnFile[".\\files\\" + reqDetail.data + ".txt"].push_back(*m_clients[client_sock]);
                     }
                     break;
 
                 case MC_GET_FILES_REQUEST:
                     repCode = std::to_string(MC_GET_FILES_RESP);
                     send = false;
-                    getFilesInDirectory(".\\files");
+                    fileOperationHandler.getFilesInDirectory(".\\files", m_files);
                     for (const auto& fileName : m_files) 
                     {
                         repCode += fileName + ";";
                     }
                     Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
                     break;
+                case MC_GET_MESSAGES_REQUEST:
+                    send = false;
+                    // Handle get messages request
+                    repCode = std::to_string(MC_GET_MESSAGES_RESP);
+                    repCode += fileOperationHandler.readFromFile(".\\chats\\" + reqDetail.data + "_chat.txt");
+                    Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
+                    break;
 
-                case MC_CLOSE_FILE_REQUEST:
-                    repCode = MC_CLOSE_FILE_RESP;
-                    // Check if the file exists in the m_usersOnFile map
+                case MC_GET_USERS_REQUEST:
+                    // Handle get users request
+                    repCode = std::to_string(MC_GET_USERS_RESP);
+                    send = false;
+                    // Get the list of users logged into the file
+                    for (const auto& user : m_usersOnFile[".\\files\\" + reqDetail.data]) {
+                        lengthString = std::to_string(user.getId());
+                        lengthString = std::string(5 - lengthString.length(), '0') + lengthString;
+                        repCode += lengthString;
+                    }
+                    Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
+                    break;
+
+                case MC_POST_MSG_REQUEST:
+                    // Handle post message request
+                    repCode = std::to_string(MC_POST_MSG_RESP);
+                    updateChatFileOnServer(".\\chats\\" + reqDetail.fileName + "_chat.txt", reqDetail);
+                    notifyAllClients(repCode + reqDetail.dataLength + reqDetail.data + reqDetail.index
+                        , client_sock);
+                    send = false;
+                    break;
+
+                case MC_JOIN_FILE_REQUEST:
+                    // Handle post message request
+                    repCode = std::to_string(MC_JOIN_FILE_RESP);
+                    m_clients[client_sock]->setFileName(".\\files\\" + reqDetail.data);
+                    m_usersOnFile[".\\files\\" + reqDetail.data].push_back(*m_clients[client_sock]);
+                    notifyAllClients(repCode + std::to_string(reqDetail.userId), client_sock);
+                    send = false;
+                    break;
+                case MC_LEAVE_FILE_REQUEST:
+                    repCode = std::to_string(MC_LEAVE_FILE_RESP);
+                    m_clients[client_sock]->setFileName("");
                     for (auto it = m_usersOnFile.begin(); it != m_usersOnFile.end(); ++it) {
                         // Iterate over the array of clients for each file
                         for (auto clientIt = it->second.begin(); clientIt != it->second.end(); ) {
@@ -167,9 +204,9 @@ void Communicator::handleNewClient(SOCKET client_sock)
                             }
                         }
                     }
+                    notifyAllClients(repCode + std::to_string(reqDetail.userId), client_sock);
                     send = false;
                     break;
-
                 case MC_DISCONNECT: // Handle disconnect request
                     run = false;
                     handleClientDisconnect(client_sock);
@@ -182,16 +219,22 @@ void Communicator::handleNewClient(SOCKET client_sock)
 
                 if (send)
                 {
-                    std::string fileName = m_clients[client_sock]->getFileName();
-                    //reqDetail = adjustIndexForSync(fileName, reqDetail);
-                    reqDetail.fileName = fileName;
-                    updateFileOnServer(".\\files\\" + fileName, reqDetail);
-                    m_lastActionMap[fileName] = reqDetail;
-                    // Notify all connected clients about the file change
-                    notifyAllClients(repCode + reqDetail.msg, client_sock);
+                    {
+                        // Lock the mutex before updating the file
+                        std::lock_guard<std::mutex> lock(m_fileMutex);
+                        std::string fileName = m_clients[client_sock]->getFileName();
+                        
+                        reqDetail = adjustIndexForSync(fileName, reqDetail);
+                        reqDetail.fileName = fileName;
+                        updateFileOnServer(fileName, reqDetail);
+                        notifyAllClients(repCode + reqDetail.msg, client_sock);
+                        
+                        reqDetail.timestamp = getCurrentTimestamp();
+                        m_lastActionMap[fileName] = reqDetail;
+                    }// lock goes out of scope, releasing the lock
+
                 }
                 send = true;
-            }  // lock goes out of scope, releasing the lock
 
 
         }
@@ -225,8 +268,9 @@ Action Communicator::adjustIndexForSync(const std::string& fileName, Action reqD
         int lastUser = m_lastActionMap[fileName].userId;
         long long lastTimestamp = m_lastActionMap[fileName].timestamp;
         if (m_lastActionMap[fileName].code != MC_INITIAL_REQUEST && 
-            m_lastActionMap[fileName].code != MC_CREATE_FILE_REQUEST && lastUser != reqDetail.userId
-            && lastTimestamp < reqDetail.timestamp)
+            m_lastActionMap[fileName].code != MC_CREATE_FILE_REQUEST &&
+            lastUser != reqDetail.userId && 
+            lastTimestamp < reqDetail.timestamp)
         {
             int lastActionCode = m_lastActionMap[fileName].code;
             int size = m_lastActionMap[fileName].size;
@@ -239,7 +283,7 @@ Action Communicator::adjustIndexForSync(const std::string& fileName, Action reqD
 
             newIndex = std::stoi(reqDetail.index);
 
-            reqDetail.timestamp = getCurrentTimestamp();
+            //reqDetail.timestamp = getCurrentTimestamp();
 
             // uodate the index
             switch (lastActionCode) {
@@ -281,16 +325,37 @@ Action Communicator::adjustIndexForSync(const std::string& fileName, Action reqD
 
 void Communicator::handleClientDisconnect(SOCKET client_sock)
 {
-    // Clean up resources and remove the client from the map
+    // Check if the client is associated with a file
     if (m_clients.find(client_sock) != m_clients.end())
     {
-        delete m_clients[client_sock];
+        Client* disconnectedClient = m_clients[client_sock];
+
+        // Check if the client is inside a file
+        if (disconnectedClient->getFileName() != "")
+        {
+            std::string fileName = disconnectedClient->getFileName();
+
+            // Remove the client from the file's user list
+            auto it = m_usersOnFile.find(fileName);
+            if (it != m_usersOnFile.end())
+            {
+                it->second.erase(std::remove_if(it->second.begin(), it->second.end(),
+                    [disconnectedClient](const Client& client) {
+                        return client.getId() == disconnectedClient->getId();
+                    }), it->second.end());
+
+                // Notify other clients in the same file about the disconnection
+                std::string leaveFileMessage = std::to_string(MC_LEAVE_FILE_RESP) +
+                    std::to_string(disconnectedClient->getId());
+
+                notifyAllClients(leaveFileMessage, client_sock);
+            }
+        }
+
+        // Clean up resources and remove the client from the map
+        delete disconnectedClient;
         m_clients.erase(client_sock);
     }
-
-    // Notify other clients about the disconnection
-    std::string disconnectMessage = std::to_string(MC_DISCONNECT) + "00000";
-    notifyAllClients(disconnectMessage, client_sock);
 }
 
 Action Communicator::deconstructReq(const std::string& req) {
@@ -336,10 +401,28 @@ Action Communicator::deconstructReq(const std::string& req) {
     case MC_GET_FILES_REQUEST:
         //newAction.data = action;
         break;
-    case MC_CLOSE_FILE_REQUEST:
+    case MC_GET_MESSAGES_REQUEST:
+        newAction.data = action;
+        break;
+    case MC_GET_USERS_REQUEST:
+        newAction.data = action;
+        break;
+    case MC_POST_MSG_REQUEST:
+        newAction.fileNameLength = action.substr(0,5);
+        newAction.size = std::stoi(newAction.fileNameLength);
+        newAction.fileName = action.substr(5, newAction.size);
+        newAction.dataLength = action.substr(5 + newAction.size, 5);
+        newAction.data = action.substr(10 + newAction.size, std::stoi(newAction.dataLength));
+        newAction.index = action.substr(10 + newAction.size + std::stoi(newAction.dataLength), 5); // use this as user id
+        break;
+    case MC_JOIN_FILE_REQUEST:
         newAction.dataLength = action.substr(0, 5);
         newAction.data = action.substr(5, std::stoi(newAction.dataLength));
-
+        break;
+    case MC_LEAVE_FILE_REQUEST:
+        newAction.dataLength = action.substr(0, 5);
+        newAction.data = action.substr(5, std::stoi(newAction.dataLength));
+        break;
     }
     newAction.timestamp = getCurrentTimestamp();
     newAction.code = std::stoi(msgCode);
@@ -378,52 +461,36 @@ void Communicator::updateFileOnServer(const std::string& filePath, const Action&
     }
 }
 
+void Communicator::updateChatFileOnServer(const std::string& filePath, const Action& reqDetail)
+{
+    std::ofstream file(filePath, std::ios::app);  // Open file in append mode
+
+    if (!file.is_open()) {
+        throw std::runtime_error("Failed to open file for writing: " + filePath);
+    }
+    else {
+        // Format the message
+        std::string message = reqDetail.dataLength + reqDetail.data + reqDetail.index ;
+
+        // Append the message to the file
+        file << message;
+
+        // Close the file
+        file.close();
+    }
+}
 
 void Communicator::notifyAllClients(const std::string& updatedContent, SOCKET client_sock)
 {
     // Iterate through all connected clients and send them the updated content
     for (auto& sock : m_clients)
     {
-        if (sock.first != client_sock)
+        if (sock.first != client_sock && 
+            m_clients[client_sock]->getFileName() == m_clients[sock.first]->getFileName())
         {
             SOCKET client_sock = sock.first;
             Helper::sendData(client_sock, BUFFER(updatedContent.begin(), updatedContent.end()));
         }
-    }
-}
-
-std::string Communicator::readFromFile(const std::string& filePath)
-{
-    std::ifstream file(filePath);
-    if (!file.is_open())
-    {
-        throw std::runtime_error("Failed to open file: " + filePath);
-    }
-
-    std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-    file.close();
-
-    return content;
-}
-
-bool Communicator::fileExists(const std::string& fileName)
-{
-    std::ifstream file(fileName);
-    return file.good();
-}
-
-void Communicator::createFile(const std::string& fileName)
-{
-    std::ofstream file(fileName);
-    if (file.is_open())
-    {
-        // You can optionally write some initial content to the file
-        file << "Initial content of the file.\n";
-        file.close();
-    }
-    else
-    {
-        std::cerr << "Error creating the file: " << fileName << std::endl;
     }
 }
 
@@ -436,25 +503,6 @@ long long Communicator::getCurrentTimestamp() {
 
     // Convert milliseconds to a long long value
     return milliseconds.count();
-}
-
-void Communicator::getFilesInDirectory(const std::string& directoryPath) {
-    std::vector<std::string> fileList;
-
-    try {
-        for (const auto& entry : std::filesystem::directory_iterator(directoryPath)) {
-            if (std::filesystem::is_regular_file(entry)) {
-                std::string fileName = entry.path().filename().string();
-
-                if (std::find(m_files.begin(), m_files.end(), fileName) == m_files.end()) {
-                    m_files.push_back(fileName);
-                }
-            }
-        }
-    }
-    catch (const std::exception& e) {
-        std::cerr << "Error reading directory: " << e.what() << std::endl;
-    }
 }
 
 void Communicator::startHandleRequests()
