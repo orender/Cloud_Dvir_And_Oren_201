@@ -1,6 +1,7 @@
 ﻿using Microsoft.VisualBasic;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Net.Sockets;
 using System.Reflection;
@@ -21,6 +22,10 @@ namespace client_side
         private Communicator communicator;
         private CancellationTokenSource cancellationTokenSource;
         private Thread receiveServerUpdatesThread;
+
+        bool disconnect = true; // if window closed by the user disconnect
+
+        private bool isListeningToServer = true;
         private bool isCapsLockPressed = false;
         private bool isBackspaceHandled = false;
         public TextEditor(Communicator communicator, string fileName)
@@ -35,7 +40,7 @@ namespace client_side
                 ReceiveInitialContent(fileName);  // Receive initial content from the server
                 ReceiveInitialChat(fileName);     // Receive initial content from the server
                 ReceiveInitialUsers(fileName);    // Receive initial content from the server
-                // Start the thread to receive updates from the server
+                
                 cancellationTokenSource = new CancellationTokenSource();
                 receiveServerUpdatesThread = new Thread(() => ReceiveServerUpdates())
                 {
@@ -43,8 +48,8 @@ namespace client_side
                 };
                 receiveServerUpdatesThread.Start();
 
-                // Start the thread to get user input
-                //new Thread(GetUserInput) { IsBackground = true }.Start();
+                Closing += TextEditor_CloseFile; // Hook up the closing event handler
+
             }
             catch (Exception)
             {
@@ -94,10 +99,21 @@ namespace client_side
                     else if (e.Key == Key.W)
                     {
                         // Ctrl+W is pressed
-                        // Close the window and send a disconnect message to the server
-                        //DisconnectFromServer();
+                        // Close the window and send a leaveFile message to the server
                         e.Handled = true;
-                        CloseFile("menu");
+                        // TODO function that leave the file
+                        disconnect = false; // if window closed by the user disconnect
+                        isListeningToServer = false;
+
+                        string chatMessageCode = ((int)MessageCodes.MC_LEAVE_FILE_REQUEST).ToString();
+
+                        string fullMessage = $"{chatMessageCode}{communicator.UserId:D5}";
+
+                        communicator.SendData(fullMessage);
+
+                        Files mainWindow = new Files(communicator);
+                        mainWindow.Show();
+                        Close();
                         return;
                     }
                 }
@@ -255,52 +271,6 @@ namespace client_side
             txtFileContent.CaretIndex = index;
         }
 
-        private void DisconnectFromServer()
-        {
-            try
-            {
-                // Send a disconnect message to the server
-                string disconnectCode = ((int)MessageCodes.MC_DISCONNECT).ToString();
-                communicator.SendData(disconnectCode);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error disconnecting from the server: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
-
-        private void CloseFile(string req)
-        {
-            communicator.SendData($"{((int)MessageCodes.MC_LEAVE_FILE_REQUEST).ToString()}" +
-                $"{filePath.Length:D5}{filePath}{communicator.UserId}");
-
-            cancellationTokenSource?.Cancel();
-            // Wait for the background thread to complete before closing the window
-            //if (receiveServerUpdatesThread != null && receiveServerUpdatesThread.IsAlive)
-
-            receiveServerUpdatesThread.Join();
-            
-
-            if (req == "menu")
-            {
-                Menu mainWindow = new Menu(communicator);
-                mainWindow.Show();
-                Close();
-            }
-            else if (req == "create") // add key stop listen
-            {
-                CreateNewFIle mainWindow = new CreateNewFIle(communicator);
-                mainWindow.Show();
-                Close();
-            }
-            else if (req == "show") // add key stop listen
-            {
-                Files mainWindow = new Files(communicator);
-                mainWindow.Show();
-                Close();
-            }
-        }
-
         private void HandleBackspace()
         {
             int index = txtFileContent.SelectionStart;
@@ -436,16 +406,52 @@ namespace client_side
             }
         }
 
+        private void DisconnectFromServer()
+        {
+            try
+            {
+                // Send a disconnect message to the server
+                string disconnectCode = ((int)MessageCodes.MC_DISCONNECT).ToString();
+                communicator.SendData(disconnectCode);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error disconnecting from the server: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private async void TextEditor_CloseFile(object sender, EventArgs e)
+        {
+            if (disconnect)
+            {
+                try
+                {
+                    isListeningToServer = false; // Stop listening to the server
+                    string chatMessageCode = ((int)MessageCodes.MC_DISCONNECT).ToString();
+
+                    string fullMessage = $"{chatMessageCode}{communicator.UserId:D5}";
+
+                    communicator.SendData(fullMessage);
+
+                    // Close the window on the UI thread
+                    await Dispatcher.InvokeAsync(() => Close());
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Error during closing: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+        }
+
         private async void ReceiveServerUpdates()
         {
             try
             {
-                while (true)
+                while (isListeningToServer)
                 {
                     // Receive update from the server
                     string update = communicator.ReceiveData();
 
-                    
                     string code = update.Substring(0, 3); // Assuming the message code is always 3 characters
 
                     switch (code)
@@ -481,12 +487,12 @@ namespace client_side
                             throw new InvalidOperationException($"Unknown message code: {code}");
                     }
                 }
+                //receiveServerUpdatesThread.Abort();
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"Error receiving server updates: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
-
         }
 
         private void HandleInsertResponse(string update)
@@ -814,15 +820,30 @@ namespace client_side
             {
                 // Handle sending chat messages
                 string chatMessage = txtChatInput.Text;
-                if (!string.IsNullOrEmpty(chatMessage.Trim()))
+                if (IsValidMessage(chatMessage))
                 {
-                    // You can send the chat message to the server and update the UI as needed
+                    // Clear the error message
+                    lblErr.Content = string.Empty;
+
+                    // Continue with sending the message or other actions
                     SendChatMessage(chatMessage);
 
                     // Clear the input TextBox after sending the message
                     txtChatInput.Clear();
                 }
+                else
+                {
+                    // Display an error message
+                    lblErr.Content = "Invalid characters in the message.\n Please use only letters, numbers";
+                }
             }
+        }
+
+        private bool IsValidMessage(string message)
+        {
+            // Your validation logic here
+            // For example, allow only letters, numbers, and specific special characters
+            return System.Text.RegularExpressions.Regex.IsMatch(message, @"^[A-Za-z0-9,.""';:\[\]{}\-+=_!@#$%^&*()<>?/~` ]+$");
         }
 
         private void SendChatMessage(string message)
@@ -907,16 +928,6 @@ namespace client_side
         private void CutButton_Click(object sender, RoutedEventArgs e)
         {
             cutSelectedText();
-        }
-
-        private void ShowfilesButton_Click(object sender, RoutedEventArgs e)
-        {
-            CloseFile("show");
-        }
-
-        private void CreateFileButton_Click(object sender, RoutedEventArgs e)
-        {
-            CloseFile("create");
         }
 
     }  

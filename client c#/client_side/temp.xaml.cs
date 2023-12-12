@@ -52,7 +52,7 @@ namespace client_side
                     // Extract the assigned client ID
                     communicator.UserId = int.Parse(receivedData.Substring(3));
                 }
-                Menu mainWindow = new Menu(communicator);
+                Files mainWindow = new Files(communicator);
                 mainWindow.Show();
                 Close();
             }

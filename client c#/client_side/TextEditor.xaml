@@ -5,13 +5,11 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:client_side"
         mc:Ignorable="d"
-        Title="Collaborative Text Editor" Height="730" Width="1100">
+        Title="Collaborative Text Editor" Height="600" Width="1100"  Closing="TextEditor_CloseFile">
     <Grid x:Name="mainGrid">
 
         <ToolBarTray>
             <ToolBar>
-                <Button Content="New"   Click="CreateFileButton_Click"/>
-                <Button Content="Open"  Click="ShowfilesButton_Click"/>
                 <Button Content="Save"  Click="SaveButton_Click" />
                 <Separator />
                 <Button Content="Cut"   Click="CutButton_Click" />
@@ -49,16 +47,40 @@
             <StackPanel Grid.Column="1" Orientation="Vertical" Width="200" Background="DarkSlateGray">
                 <!-- Chat section -->
                 <StackPanel>
-                    <TextBlock Text="   Chat" FontWeight="Bold" Height="23" Foreground="White"/>
-                    <TextBox x:Name="txtChat" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Margin="5,5,5,5" FontSize="10" Height="287" Width="191" Background="Black" Foreground="White"/>
-                    <TextBlock Text="  Send Message" FontWeight="Bold" Height="23" Foreground="White" Margin="5,5,5,0"/>
-                    <TextBox x:Name="txtChatInput" Margin="5,0,5,5" FontSize="16" Height="42" Width="180" Background="Black" Foreground="White" KeyDown="TxtChatInput_KeyDown"/>
+                    <TextBlock Text="   Chat" FontWeight="Bold" Height="27" Foreground="White"/>
+                    <TextBox x:Name="txtChat" 
+                        VerticalScrollBarVisibility="Auto" 
+                        HorizontalScrollBarVisibility="Auto" 
+                        Margin="5,5,5,5" 
+                        FontSize="10" 
+                        Height="263" 
+                        Width="191" 
+                        Background="Black" 
+                        Foreground="White"
+                        IsReadOnly="True"/>
+                    <TextBlock Text="  Send Message" FontWeight="Bold" Height="30" Foreground="White" Margin="5,5,5,0"/>
+
+                    <TextBox x:Name="txtChatInput" 
+                        Margin="5,0,5,5" 
+                        FontSize="16" 
+                        Height="54" 
+                        Width="180" 
+                        Background="Black" 
+                        Foreground="White" 
+                        KeyDown="TxtChatInput_KeyDown"/>
+                    <Label x:Name="lblErr" Foreground="red" FontSize="12" FontWeight="Bold" Height="39" Width="188"/>
                 </StackPanel>
 
                 <!-- User List section -->
                 <StackPanel>
-                    <TextBlock Text="   User List" FontWeight="Bold" Foreground="White"/>
-                    <ListBox x:Name="lstUserList" FontSize="16" Height="153" Width="180" Background="Black" Foreground="White"/>
+                    <TextBlock Text="   User List" FontWeight="Bold" Foreground="White" Height="23"/>
+                    <ListBox x:Name="lstUserList" 
+                             FontSize="13" 
+                             Height="113" 
+                             Width="180" 
+                             Background="Black" 
+                             Foreground="White"
+                             />
                 </StackPanel>
             </StackPanel>
         </Grid>

@@ -87,6 +87,37 @@ namespace client_side
             return rep;
         }
 
+        /*
+        public string ReceiveData(CancellationToken cancellationToken)
+        {
+            // Adjust the timeout value as needed
+            TimeSpan timeout = TimeSpan.FromSeconds(1);
+
+            // Use CancellationTokenSource to apply timeout
+            using (var timeoutCts = new CancellationTokenSource(timeout))
+            using (var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token))
+            {
+                try
+                {
+                    byte[] buffer = new byte[1024];  // Adjust the buffer size as needed
+                    int bytesRead = m_socket.Receive(buffer);
+                    string rep = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+                    LogAction(rep);
+                    return rep;
+                }
+                catch (OperationCanceledException)
+                {
+                    // Handle the case where the operation is canceled due to timeout
+                    throw new TimeoutException("Receive operation timed out.");
+                }
+                catch (Exception ex)
+                {
+                    // Handle other exceptions
+                    throw new Exception($"Error receiving data: {ex.Message}");
+                }
+            }
+        }
+
         public string ReceiveDataWithTimeout(TimeSpan timeout)
         {
             try
@@ -123,6 +154,7 @@ namespace client_side
             }
         }
 
+        */
         public void LogAction(string action)
         {
             try
