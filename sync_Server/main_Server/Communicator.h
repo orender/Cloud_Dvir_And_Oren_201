@@ -3,12 +3,10 @@
 #include <map>
 #include <stdexcept>
 #include <iomanip>
-#include <sstream>
 #include <thread>
 #include <exception>
 #include <iostream>
-#include <fstream>
-#include <filesystem>
+#include <unordered_map>
 #include <sys/stat.h>
 #include <mutex>
 #include <chrono>
@@ -17,13 +15,10 @@
 #include "Operations.h"
 #include "FileOperation.h"
 
-namespace fs = std::filesystem;
-
 #pragma comment(lib, "ws2_32.lib")  // Add this lin
 
 #define PORT 12345
 #define BUFFER_SIZE 1024
-
 
 struct Action
 {
@@ -51,7 +46,8 @@ private:
     std::map<std::string, Action> m_lastActionMap; // fileName : <lastAction, index>
     std::map<std::string, std::vector<Client>> m_usersOnFile; // fileName : users
     std::vector<std::string> m_files;
-    std::mutex m_fileMutex;
+
+    std::unordered_map<std::string, std::mutex> m_fileMutexes;
 
     Operations operationHandler;
     FileOperation fileOperationHandler;
