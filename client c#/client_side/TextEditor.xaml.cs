@@ -20,7 +20,6 @@ namespace client_side
     {
         private string filePath;
         private Communicator communicator;
-        private CancellationTokenSource cancellationTokenSource;
         private Thread receiveServerUpdatesThread;
 
         bool disconnect = true; // if window closed by the user disconnect
@@ -41,7 +40,6 @@ namespace client_side
                 ReceiveInitialChat(fileName);     // Receive initial content from the server
                 ReceiveInitialUsers(fileName);    // Receive initial content from the server
                 
-                cancellationTokenSource = new CancellationTokenSource();
                 receiveServerUpdatesThread = new Thread(() => ReceiveServerUpdates())
                 {
                     IsBackground = true
@@ -101,7 +99,6 @@ namespace client_side
                         // Ctrl+W is pressed
                         // Close the window and send a leaveFile message to the server
                         e.Handled = true;
-                        // TODO function that leave the file
                         disconnect = false; // if window closed by the user disconnect
                         isListeningToServer = false;
 
