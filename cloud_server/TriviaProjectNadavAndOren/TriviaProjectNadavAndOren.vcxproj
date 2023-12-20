@@ -19,11 +19,18 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="BinProtocol.cpp" />
+    <ClCompile Include="container.cpp" />
     <ClCompile Include="Main.cpp" />
+    <ClCompile Include="sqlite3.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="BinProtocol.h" />
     <ClInclude Include="container.h" />
     <ClInclude Include="dataSplitter.h" />
+    <ClInclude Include="DataTypes.h" />
+    <ClInclude Include="DBHelper.hpp" />
+    <ClInclude Include="sqlite3.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
