@@ -11,11 +11,12 @@ int main() {
     unsigned int         PortContainer3 = 12355;
 
 
-    container c1 = container("127.0.0.1", 12345);
+    container c1 = container("127.0.0.1", PortContainer1);
     while (c1.start() == -1) {
     }
-    c1.save("bruh");
-
+    c1.save("000001ok");
+    c1.getBlob(1);
+    c1.deleteBlob(1);
 
     WSACleanup();
 

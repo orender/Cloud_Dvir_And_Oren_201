@@ -14,7 +14,7 @@ void writeMessage(int code, const std::string& message, char*& buffer, size_t& b
 
     // Write header
     *reinterpret_cast<int*>(buffer) = htonl(code);
-    *reinterpret_cast<uint16_t*>(buffer + sizeof(int)) = htons(length);
+    *reinterpret_cast<uint16_t*>(buffer + sizeof(int)) = length;
 
     // Write payload
     std::memcpy(buffer + sizeof(int) + sizeof(uint16_t), message.c_str(), length);

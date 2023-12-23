@@ -5,9 +5,10 @@
 #include "DataTypes.h"
 #include "BinProtocol.h"
 #include "DBHelper.hpp"
+#include <string>
 #define BLOBSIZE 50
 
-enum messageCodes { saveBlobCode, getBlobCode, deleteBlobCode};
+enum messageCodes { saveBlobCode = 1, getBlobCode = 2, deleteBlobCode = 3};
 
 
 class container
