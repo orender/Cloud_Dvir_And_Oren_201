@@ -40,7 +40,6 @@ public class BinaryProtocol
                 // Read header
                 code = IPAddress.NetworkToHostOrder(reader.ReadInt32());
                 ushort length = reader.ReadUInt16();
-
                 // Read payload
                 byte[] payload = reader.ReadBytes(length);
                 message = System.Text.Encoding.UTF8.GetString(payload);
@@ -56,51 +55,6 @@ public class BinaryProtocol
     }
 }
 
-class Program
-{
-    static void Main()
-    {
-        var dbHelper = new simpleDbHelper("test.db");
-
-        // Create the database and tables (if not already created)
-        dbHelper.CreateDatabase();
-        IPAddress ipAdress = IPAddress.Parse("0.0.0.0");
-        TcpListener myList = new TcpListener(ipAdress,42011);
-        myList.Start();
-        Socket s = myList.AcceptSocket();
-        Console.WriteLine("Connection accepted from " + s.RemoteEndPoint);
-        byte[] b = new byte[1024];
-        int code = 14;
-        int k = 0;
-        string msg = "";
-        while(code!=69)
-        {
-            k = s.Receive(b);
-            msg = "";
-            if(BinaryProtocol.ReadMessage(b, out code, out msg)){
-                Console.WriteLine("message was legit fr");
-            }
-
-            Console.WriteLine("msg code: " + code + ", msg is: " + msg);
-            msg = "i love 69";
-            code = 69;
-            s.Send(BinaryProtocol.WriteMessage(code, msg));
-        }
-        /*
-        // Insert data
-        dbHelper.ExecuteNonQuery("INSERT INTO YourTable (Column1, Column2) VALUES (@Value1, @Value2)",
-            new SQLiteParameter("@Value1", "SomeValue"),
-            new SQLiteParameter("@Value2", 42));
-
-        // Retrieve data
-        DataTable result = dbHelper.ExecuteQuery("SELECT * FROM YourTable");
-        foreach (DataRow row in result.Rows)
-        {
-            Console.WriteLine($"Column1: {row["Column1"]}, Column2: {row["Column2"]}");
-        }
-        Console.WriteLine("1");*/
-    }
-}
 public class simpleDbHelper
 {
     private readonly string connectionString;
@@ -119,9 +73,8 @@ public class simpleDbHelper
             // Create a table with three columns (Modify as needed)
             using (var command = new SQLiteCommand(
                 "CREATE TABLE IF NOT EXISTS BLOBS (" +
-                "   ID INTEGER PRIMARY KEY AUTOINCREMENT," +
-                "   Column1 TEXT NOT NULL," +
-                "   Column2 INTEGER NOT NULL" +
+                "   ID INTEGER NOT NULL," +
+                "   DATA TEXT NOT NULL" +
                 ");", connection))
             {
                 command.ExecuteNonQuery();
@@ -171,6 +124,95 @@ public class simpleDbHelper
             var dataTable = new DataTable();
             adapter.Fill(dataTable);
             return dataTable;
+        }
+    }
+}
+
+enum Commands
+{
+    save = 1,
+    get = 2,
+    delete = 3
+}
+
+class Program
+{
+    static void Main()
+    {
+        var dbHelper = new simpleDbHelper("test.db");
+
+        // Create the database and tables (if not already created)
+        dbHelper.CreateDatabase();
+        IPAddress ipAdress = IPAddress.Parse("0.0.0.0");
+        TcpListener myList = new TcpListener(ipAdress,42011);
+        myList.Start();
+        Socket s = myList.AcceptSocket();
+        Console.WriteLine("Connection accepted from " + s.RemoteEndPoint);
+        byte[] b = new byte[1024];
+
+        DataTable result;
+        int code = 14;
+        int k = 0;
+        string msg = "";
+        int id = 0;
+        string data = "";
+
+        while(code!=69)
+        {
+            k = s.Receive(b);
+            msg = "";
+            if(BinaryProtocol.ReadMessage(b, out code, out msg)){
+                Console.WriteLine("message was: " + msg);
+                switch(code) 
+                {
+                    case (int)Commands.save:
+                        id = int.Parse(msg.Substring(0,6));
+                        result = dbHelper.ExecuteQuery("SELECT * FROM BLOBS WHERE ID = " + id);
+                        foreach (DataRow row in result.Rows)
+                        {
+                            Console.WriteLine($"Column1: {row["ID"]}, Column2: {row["DATA"]}");
+                            msg = "id already exists";
+                            code = 42;
+                            s.Send(BinaryProtocol.WriteMessage(code, msg));
+                        }
+                        if(code != 42)
+                        {
+                            data = msg.Substring(6);
+                            dbHelper.ExecuteNonQuery("INSERT INTO BLOBS (ID, DATA) VALUES (@Value1, @Value2)",
+                                new SQLiteParameter("@Value1", id),
+                                new SQLiteParameter("@Value2", data));
+                            msg = "data saved";
+                            code = 420;
+                            s.Send(BinaryProtocol.WriteMessage(code, msg));
+                        }
+                        break;
+                    case (int)Commands.get:
+                        id = int.Parse(msg.Substring(0));
+                        result = dbHelper.ExecuteQuery("SELECT * FROM BLOBS WHERE ID = " + id);
+                        foreach (DataRow row in result.Rows)
+                        {
+                            Console.WriteLine($"Column1: {row["ID"]}, Column2: {row["DATA"]}");
+                            msg = $"{row["DATA"]}";
+                            code = 420;
+                            s.Send(BinaryProtocol.WriteMessage(code, msg));
+                        }
+                        break;
+                    case (int)Commands.delete:
+                        id = int.Parse(msg.Substring(0));
+                        result = dbHelper.ExecuteQuery("DELETE FROM BLOBS WHERE ID = " + id);
+                        msg = "blob deleted";
+                        code = 420;
+                        s.Send(BinaryProtocol.WriteMessage(code, msg));
+                        break;
+                    default:
+                        break;
+                }
+            }
+            else{
+                msg = "error reading message";
+                code = 69;
+                s.Send(BinaryProtocol.WriteMessage(code, msg));
+            }
         }
     }
 }
