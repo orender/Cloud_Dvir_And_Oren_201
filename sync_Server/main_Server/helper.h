@@ -19,6 +19,7 @@ enum MessageCodes
     MC_POST_MSG_REQUEST = 111,
     MC_JOIN_FILE_REQUEST = 112,
     MC_LEAVE_FILE_REQUEST = 113,
+    MC_DELETE_FILE_REQUEST = 114,
 
     MC_ERR_RESP = 200, //responses
     MC_INITIAL_RESP = 201,
@@ -27,17 +28,27 @@ enum MessageCodes
     MC_REPLACE_RESP = 204,
     MC_CREATE_FILE_RESP = 205,
     MC_GET_FILES_RESP = 206,
+    MC_ADD_FILE_RESP = 207,
     MC_CLOSE_FILE_RESP = 208,
     MC_GET_MESSAGES_RESP = 209,
     MC_GET_USERS_RESP = 210,
     MC_POST_MSG_RESP = 211,
     MC_JOIN_FILE_RESP = 212,
     MC_LEAVE_FILE_RESP = 213,
+    MC_DELETE_FILE_RESP = 214,
 
     MC_DISCONNECT = 300, //user
-    MC_CLIENT_ID = 301
+    MC_LOGIN_REQUEST = 301,
+    MC_SIGNUP_REQUEST = 303,
+    MC_FORGOT_PASSW_REQUEST = 304,
+    MC_APPROVE_RESP = 302,
+
+    MC_LOGIN_RESP = 401,
+    MC_SIGNUP_RESP = 403,
+    MC_FORGOT_PASSW_RESP = 404
 
 };
+
 class Helper
 {
 public:
@@ -45,4 +56,6 @@ public:
 
     static BUFFER getPartFromSocket(const SOCKET sc, const int bytesNum);
     static BUFFER getPartFromSocket(const SOCKET sc, const int bytesNum, const int flags);
+
+    static bool IsConnectionError(const std::exception& e);
 };

@@ -10,10 +10,12 @@
 #include <sys/stat.h>
 #include <mutex>
 #include <chrono>
+//#include <cpprest/http_client.h>
 #include "Client.h"
 #include "helper.h"
 #include "Operations.h"
 #include "FileOperation.h"
+#include "IDatabase.h"
 
 #pragma comment(lib, "ws2_32.lib")  // Add this lin
 
@@ -34,6 +36,16 @@ struct Action
     std::string fileNameLength;
 
     std::string msg;
+
+    int userNameLength; // login/ signup
+    std::string userName;
+
+    std::string pass;
+    int passLength;
+
+    std::string email;
+    int emailLength;
+
     int size;
     int userId;
 };
@@ -41,7 +53,6 @@ struct Action
 class Communicator {
 private:
     SOCKET m_serverSocket;
-    std::atomic<int> clientIdCounter;  // Atomic counter for generating unique client IDs
     std::map<SOCKET, Client*> m_clients; 
     std::map<std::string, Action> m_lastActionMap; // fileName : <lastAction, index>
     std::map<std::string, std::vector<Client>> m_usersOnFile; // fileName : users
@@ -51,6 +62,7 @@ private:
 
     Operations operationHandler;
     FileOperation fileOperationHandler;
+    IDatabase* m_database;
 public:
     // Constructor
     Communicator();
@@ -58,13 +70,15 @@ public:
     // Destructor
     ~Communicator();
 
+    void setDB(IDatabase* db);
+
     void bindAndListen();
 
     void handleNewClient(SOCKET client_sock);
 
     void updateFileOnServer(const std::string& filePath, const Action& reqDetail);
     void updateChatFileOnServer(const std::string& filePath, const Action& reqDetail);
-    void notifyAllClients(const std::string& updatedContent, SOCKET client_sock);
+    void notifyAllClients(const std::string& updatedContent, SOCKET client_sock, const bool isOnFile);
     void startHandleRequests();
 
     Action deconstructReq(const std::string& req);

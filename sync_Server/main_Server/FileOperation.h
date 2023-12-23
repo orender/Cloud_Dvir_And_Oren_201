@@ -9,6 +9,7 @@ class FileOperation
 public:
     bool fileExists(const std::string& fileName);
     void createFile(const std::string& fileName, bool fileType);
+    bool deleteFile(const std::string& filePath);
     void getFilesInDirectory(const std::string& directoryPath, std::vector<std::string>& files);
     std::string readFromFile(const std::string& filePath);
 };

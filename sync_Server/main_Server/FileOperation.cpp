@@ -38,6 +38,18 @@ void FileOperation::createFile(const std::string& fileName, bool fileType)
     }
 }
 
+bool FileOperation::deleteFile(const std::string& filePath)
+{
+    if (std::remove(filePath.c_str()) == 0)
+    {
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
 void FileOperation::getFilesInDirectory(const std::string& directoryPath, std::vector<std::string>& files) {
     try {
         for (const auto& entry : std::filesystem::directory_iterator(directoryPath)) {

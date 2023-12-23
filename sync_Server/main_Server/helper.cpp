@@ -34,3 +34,10 @@ BUFFER Helper::getPartFromSocket(const SOCKET sc, const int bytesNum, const int 
 	recieved.resize(bytes_recieved);
 	return recieved;
 }
+
+bool Helper::IsConnectionError(const std::exception& e)
+{
+	// Check if the exception message contains a specific string indicating a connection error
+	return (std::string(e.what()).find("Error while receiving from socket") != std::string::npos) ||
+		(std::string(e.what()).find("Error while sending message to client") != std::string::npos);
+}
