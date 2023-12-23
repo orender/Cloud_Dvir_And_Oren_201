@@ -99,6 +99,7 @@ namespace client_side
                         // Ctrl+W is pressed
                         // Close the window and send a leaveFile message to the server
                         e.Handled = true;
+                        // TODO function that leave the file
                         disconnect = false; // if window closed by the user disconnect
                         isListeningToServer = false;
 
@@ -477,6 +478,9 @@ namespace client_side
                             HandleLeaveFileResponse(update);
                             break;
 
+                        case "302": // MC_APPROVE_RESP
+                            break;
+ 
                         case "300": // MC_DISCONNECT
                             break; // TODO inform the client about him leaving
 
@@ -635,12 +639,14 @@ namespace client_side
         {
             try
             {
-                // Assuming the message format is "212{id}"
-                int userIdIndex = 3;
-                int userId = int.Parse(update.Substring(userIdIndex));
+                // Assuming the message format is "212{nameLength}{name}"
+                int lengthIndex = 3;
+                int length = int.Parse(update.Substring(lengthIndex, 5));
+
+                string name = update.Substring(8, length);
 
                 // Process the join file response as needed (e.g., update UI)
-                Dispatcher.Invoke(() => lstUserList.Items.Add(userId.ToString()));
+                Dispatcher.Invoke(() => lstUserList.Items.Add(name));
             }
             catch (Exception ex)
             {
@@ -652,12 +658,14 @@ namespace client_side
         {
             try
             {
-                // Assuming the message format is "213{id}"
-                int userIdIndex = 3;
-                int userId = int.Parse(update.Substring(userIdIndex, 5));
+                // Assuming the message format is "213{nameLength}{name}"
+                int lengthIndex = 3;
+                int length = int.Parse(update.Substring(lengthIndex, 5));
+
+                string name = update.Substring(8, length);
 
                 // Process the leave file response as needed (e.g., update UI)
-                Dispatcher.Invoke(() => lstUserList.Items.Remove(userId.ToString()));
+                Dispatcher.Invoke(() => lstUserList.Items.Remove(name));
             }
             catch (Exception ex)
             {
@@ -719,11 +727,18 @@ namespace client_side
                 {
                     List<string> users = new List<string>();
 
+                    int currentIndex = 3;
+
                     // Extract each user from the response
-                    for (int i = 3; i < initialContent.Length; i += 5)
+                    while (currentIndex < initialContent.Length)
                     {
-                        int userId = int.Parse(initialContent.Substring(i, 5));
-                        users.Add(userId.ToString());
+                        int length = int.Parse(initialContent.Substring(currentIndex, 5));
+                        currentIndex += 5;
+
+                        string name = initialContent.Substring(currentIndex, length);
+                        currentIndex += length; 
+
+                        users.Add(name);
                     }
 
                     // Update the user list in the UI
@@ -744,8 +759,10 @@ namespace client_side
                 string stringWithoutLast4Chars = fileName.Substring(0, newLength);
                 string code = ((int)MessageCodes.MC_GET_MESSAGES_REQUEST).ToString();
                 communicator.SendData($"{code}{stringWithoutLast4Chars}");
+                
                 string initialContent = communicator.ReceiveData();
                 string codeString = initialContent.Substring(0, 3);
+                
                 if (codeString == ((int)MessageCodes.MC_GET_MESSAGES_RESP).ToString() &&
                     initialContent.Length > 3)
                 {
@@ -762,16 +779,19 @@ namespace client_side
                         currentIndex += dataLength;
 
                         // Extract user ID for each message
-                        int userId = int.Parse(initialContent.Substring(currentIndex, 5));
+                        int userNameLen = int.Parse(initialContent.Substring(currentIndex, 5));
                         currentIndex += 5;
 
-                        if (userId == communicator.UserId)
+                        string userName = initialContent.Substring(currentIndex, userNameLen);
+                        currentIndex += userNameLen;
+
+                        if (userName == communicator.UserName)
                         {
                             AppendChatMessage($"You: {data}");
                         }
                         else
                         {
-                            AppendChatMessage($"{userId}: {data}");
+                            AppendChatMessage($"{userName}: {data}");
                         }
                     }
                 }
@@ -840,7 +860,7 @@ namespace client_side
         {
             // Your validation logic here
             // For example, allow only letters, numbers, and specific special characters
-            return System.Text.RegularExpressions.Regex.IsMatch(message, @"^[A-Za-z0-9,.""';:\[\]{}\-+=_!@#$%^&*()<>?/~` ]+$");
+            return System.Text.RegularExpressions.Regex.IsMatch(message, @"^[A-Za-z0-9,."":\[\]{}\+=_!@#$%^&*()<>?/~` ]+$");
         }
 
         private void SendChatMessage(string message)
@@ -860,7 +880,7 @@ namespace client_side
 
                 // Construct the message to be sent to the server
                 string fullMessage = $"{chatMessageCode}{stringWithoutLast4Chars.Length:D5}" +
-                    $"{stringWithoutLast4Chars}{messageLength:D5}{message}{userId:D5}";
+                    $"{stringWithoutLast4Chars}{messageLength:D5}{message}";
 
                 communicator.SendData(fullMessage);
 

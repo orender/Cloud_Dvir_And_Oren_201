@@ -31,7 +31,8 @@ namespace client_side
         MC_POST_MSG_REQUEST = 111,
         MC_JOIN_FILE_REQUEST = 112,
         MC_LEAVE_FILE_REQUEST = 113,
-        
+        MC_DELETE_FILE_REQUEST = 114,
+
         MC_ERR_RESP = 200, //responses
         MC_INITIAL_RESP = 201,
         MC_INSERT_RESP = 202,
@@ -39,21 +40,31 @@ namespace client_side
         MC_REPLACE_RESP = 204,
         MC_CREATE_FILE_RESP = 205,
         MC_GET_FILES_RESP = 206,
+        MC_ADD_FILE_RESP = 207,
         MC_CLOSE_FILE_RESP = 208,
         MC_GET_MESSAGES_RESP = 209,
         MC_GET_USERS_RESP = 210,
         MC_POST_MSG_RESP = 211,
         MC_JOIN_FILE_RESP = 212,
         MC_LEAVE_FILE_RESP = 213,
+        MC_DELETE_FILE_RESP = 214,
 
         MC_DISCONNECT = 300, //user
-        MC_CLIENT_ID = 301
+        MC_LOGIN_REQUEST = 301,
+        MC_SIGNUP_REQUEST = 303,
+        MC_FORGOT_PASSW_REQUEST = 304,
+        MC_APPROVE_RESP = 302,
+
+        MC_LOGIN_RESP = 401,
+        MC_SIGNUP_RESP = 403,
+        MC_FORGOT_PASSW_RESP = 404
 
     };
     public class Communicator
     {
         private Socket m_socket;
         public int UserId { get; set; }
+        public string UserName { get; set; }
         public Communicator(string ip, int port)
         {
             m_socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
@@ -170,6 +181,22 @@ namespace client_side
                 // Handle the exception or log it to another source
                 MessageBox.Show($"Error logging action: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+        public bool ContainsSqlInjection(string input)
+        {
+            // Define a list of special characters commonly used in SQL injection
+            string[] sqlSpecialCharacters = { "'", ";", "--", "/*", "*/", "xp_", "exec", "sp_"};
+
+            // Check if the input contains any of the special characters
+            foreach (var specialCharacter in sqlSpecialCharacters)
+            {
+                if (input.Contains(specialCharacter, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }
