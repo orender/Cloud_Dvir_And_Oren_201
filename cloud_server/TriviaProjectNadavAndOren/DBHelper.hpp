@@ -1,5 +1,6 @@
 #pragma once
 #include "sqlite3.h"
+#include <vector>
 #include <iostream>
 class DBHelper {
 private:
@@ -8,10 +9,18 @@ private:
 public:
     DBHelper(std::string name) {
         const char* dbName = name.c_str();
-        int rc = sqlite3_open(dbName, &db);
 
-        if (rc) {
-            std::cerr << "Cannot open database: " << sqlite3_errmsg(db) << std::endl;
+
+        if (sqlite3_open(dbName, &db) != SQLITE_OK) {
+            std::cerr << "Cannot open database\n";
+            sqlite3_close(db);
+            exit(1);
+        }
+
+
+        // Create a table
+        if (sqlite3_exec(db, "CREATE TABLE IF NOT EXISTS files (id INTEGER PRIMARY KEY, name TEXT, tablename TEXT);", 0, 0, 0) != SQLITE_OK) {
+            std::cerr << "Table creation failed\n";
             sqlite3_close(db);
             exit(1);
         }
@@ -24,17 +33,23 @@ public:
         std::cout << "Database closed successfully" << std::endl;
     }
 
-    void executeQuery(const char* query) {
-        char* errMsg = nullptr;
+    std::string getBlobTable(std::string filename)
+    {
+        // Execute a SELECT query and print the results
+        std::string scom = "SELECT tablename FROM files WHERE name = " + filename + ";";
+        const char* selectQuery = scom.c_str();
+        sqlite3_stmt* statement;
 
-        int rc = sqlite3_exec(db, query, nullptr, nullptr, &errMsg);
-
-        if (rc != SQLITE_OK) {
-            std::cerr << "SQL error: " << errMsg << std::endl;
-            sqlite3_free(errMsg);
+        if (sqlite3_prepare_v2(db, selectQuery, -1, &statement, 0) == SQLITE_OK) {
+            while (sqlite3_step(statement) == SQLITE_ROW) {
+                const char* tableName = reinterpret_cast<const char*>(sqlite3_column_text(statement, 2));
+                std::string ret(tableName);
+                return ret;
+            }
+            sqlite3_finalize(statement);
         }
         else {
-            std::cout << "Query executed successfully" << std::endl;
+            std::cerr << "Query execution failed\n";
         }
     }
 };

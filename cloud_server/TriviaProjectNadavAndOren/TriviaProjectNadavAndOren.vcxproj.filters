@@ -27,6 +27,9 @@
     <ClCompile Include="BinProtocol.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="dataSplitter.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="dataSplitter.h">

@@ -17,10 +17,12 @@ private:
 	SOCKET _sock;
 	SOCKADDR_IN _addr;
 public:
+	// Default constructor
+	container();
 	container(std::string ip, unsigned int port);
 	~container();
 	int start();
-	int save(std::string SaveBlob);
-	std::string getBlob(int id);
+	int save(std::string SaveBlob, std::string id);
+	std::string getBlob(std::string id);
 	int deleteBlob(int id);
 };

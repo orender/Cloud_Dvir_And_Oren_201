@@ -1,5 +1,9 @@
 #include "container.h"
 
+container::container() : _sock(INVALID_SOCKET)
+{
+}
+
 container::container(std::string ip, unsigned int port)
 {
     //initialize socket
@@ -28,11 +32,11 @@ int container::start()
     return connect(_sock, (SOCKADDR*)&_addr, sizeof(_addr));
 }
 
-int container::save(std::string SaveBlob)
+int container::save(std::string SaveBlob, std::string id)
 {
     char* buffer = new char[1024];
     size_t bufferSize;
-    writeMessage(saveBlobCode, SaveBlob, buffer, bufferSize);
+    writeMessage(saveBlobCode, id + SaveBlob, buffer, bufferSize);
 
 
     send(_sock, buffer, bufferSize, 0);
@@ -48,11 +52,11 @@ int container::save(std::string SaveBlob)
     return 0;
 }
 
-std::string container::getBlob(int id)
+std::string container::getBlob(std::string id)
 {
     char* buffer = new char[1024];
     size_t bufferSize;
-    writeMessage(getBlobCode, std::to_string(id), buffer, bufferSize);
+    writeMessage(getBlobCode, id, buffer, bufferSize);
 
 
     send(_sock, buffer, bufferSize, 0);

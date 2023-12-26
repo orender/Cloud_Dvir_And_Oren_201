@@ -21,6 +21,7 @@
   <ItemGroup>
     <ClCompile Include="BinProtocol.cpp" />
     <ClCompile Include="container.cpp" />
+    <ClCompile Include="dataSplitter.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="sqlite3.c" />
   </ItemGroup>
