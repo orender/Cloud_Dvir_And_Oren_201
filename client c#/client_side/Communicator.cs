@@ -65,6 +65,7 @@ namespace client_side
         private Socket m_socket;
         public int UserId { get; set; }
         public string UserName { get; set; }
+        public int UserFileIndex { get; set; }
         public Communicator(string ip, int port)
         {
             m_socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
@@ -170,7 +171,7 @@ namespace client_side
         {
             try
             {
-                string logFilePath = "UserLog" + UserId.ToString() + ".txt";
+                string logFilePath = "UserLog" + UserName + ".txt";
 
                 // Append the action to the log file
                 File.AppendAllText(logFilePath, $"{DateTime.Now}: {action}\n");

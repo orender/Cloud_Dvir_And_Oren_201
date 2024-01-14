@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
+using System.Linq;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -46,6 +47,7 @@ namespace client_side
                 };
                 receiveServerUpdatesThread.Start();
 
+                //txtFileContent.CaretIndex = communicator.UserFileIndex; 
                 Closing += TextEditor_CloseFile; // Hook up the closing event handler
 
             }
@@ -89,6 +91,10 @@ namespace client_side
                         // Ctrl+X (cut) is pressed
                         cutSelectedText();
                     }
+                    else if(e.Key == Key.A)
+                    {
+                        txtFileContent.CaretIndex = txtFileContent.Text.Length;
+                    }
                     else if (e.Key == Key.S) 
                     {
                         SaveFileContent();
@@ -105,7 +111,7 @@ namespace client_side
 
                         string chatMessageCode = ((int)MessageCodes.MC_LEAVE_FILE_REQUEST).ToString();
 
-                        string fullMessage = $"{chatMessageCode}{communicator.UserId:D5}";
+                        string fullMessage = $"{chatMessageCode}";
 
                         communicator.SendData(fullMessage);
 
@@ -133,6 +139,7 @@ namespace client_side
                 else if (e.Key != Key.LeftShift && e.Key != Key.RightShift && e.Key != Key.LeftCtrl && e.Key != Key.RightCtrl && e.Key != Key.LeftAlt && e.Key != Key.RightAlt)
                 {
                     int index = txtFileContent.SelectionStart;
+                    int newlineCount = txtFileContent.Text.Substring(0, index).Count(c => c == '\n');
                     int selectionLength = txtFileContent.SelectionLength;
 
                     string code;
@@ -144,8 +151,10 @@ namespace client_side
                         char replacementText = GetInputChar(e.Key);
                         txtFileContent.Text = txtFileContent.Text.Remove(index, selectionLength);
 
+                        //selectionLength += txtFileContent.Text.Substring(0, index).Count(c => c == '\n');
+
                         code = ((int)MessageCodes.MC_REPLACE_REQUEST).ToString();
-                        communicator.SendData($"{code}{selectionLength:D5}{replacementText.ToString().Length:D5}{replacementText}{index}"); // Replace action
+                        communicator.SendData($"{code}{selectionLength:D5}{replacementText.ToString().Length:D5}{replacementText}{index:D5}{newlineCount:D5}"); // Replace action
                         txtFileContent.CaretIndex = index;
                     }
                     else
@@ -157,7 +166,7 @@ namespace client_side
                             string inputString = inputChar.ToString();
 
                             code = ((int)MessageCodes.MC_INSERT_REQUEST).ToString();
-                            communicator.SendData($"{code}{inputString.Length:D5}{inputString}{index}"); // Insert action
+                            communicator.SendData($"{code}{inputString.Length:D5}{inputString}{index:D5}{newlineCount:D5}"); // Insert action
                         }
                     }
                 }
@@ -175,33 +184,34 @@ namespace client_side
             try
             {
                 // Get the current caret index
-                int index = txtFileContent.CaretIndex;
+                int index = txtFileContent.SelectionStart;
+                int newlineCount = txtFileContent.Text.Substring(0, index).Count(c => c == '\n');
 
                 if (txtFileContent.SelectionLength > 0)
                 {
                     // Replace the selected text with a new line
                     index = txtFileContent.SelectionStart;
                     int selectionLength = txtFileContent.SelectionLength;
-                    txtFileContent.Text = txtFileContent.Text.Remove(index, selectionLength).Insert(index, Environment.NewLine);
+                    txtFileContent.Text = txtFileContent.Text.Remove(index, selectionLength).Insert(index, "\n");
 
                     // Send the replace action to the server
                     string code = ((int)MessageCodes.MC_REPLACE_REQUEST).ToString();
-                    communicator.SendData($"{code}{selectionLength:D5}{Environment.NewLine.Length:D5}{Environment.NewLine}{index}");
+                    communicator.SendData($"{code}{selectionLength:D5}00001\n{index:D5}{newlineCount:D5}");
 
                     // Set the caret index to the position after the inserted new line
-                    txtFileContent.CaretIndex = index + Environment.NewLine.Length;
+                    txtFileContent.CaretIndex = index + 1;
                 }
                 else
                 {
                     // Insert a new line at the caret position
-                    txtFileContent.Text = txtFileContent.Text.Insert(index, Environment.NewLine);
+                    txtFileContent.Text = txtFileContent.Text.Insert(index, "\n");
 
                     // Move the caret to the position after the inserted new line
-                    txtFileContent.CaretIndex = index + Environment.NewLine.Length;
+                    txtFileContent.CaretIndex = index + 1;
 
                     // Send the server a message about the Enter key press
                     string code = ((int)MessageCodes.MC_INSERT_REQUEST).ToString();
-                    communicator.SendData($"{code}{Environment.NewLine.Length:D5}{Environment.NewLine}{index}");
+                    communicator.SendData($"{code}00001\n{index:D5}{newlineCount:D5}");
                 }
             }
             catch (Exception ex)
@@ -215,6 +225,7 @@ namespace client_side
             // Implement the logic to handle the Tab key press
             // For example, you can insert a tab character at the current caret position
             int index = txtFileContent.CaretIndex;
+            int newlineCount = txtFileContent.Text.Substring(0, index).Count(c => c == '\n');
             string tabString = "    ";
 
             // Insert the tab character at the current caret position
@@ -225,7 +236,7 @@ namespace client_side
 
             // Send the Tab action to the server
             string code = ((int)MessageCodes.MC_INSERT_REQUEST).ToString();
-            communicator.SendData($"{code}{tabString.Length:D5}{tabString}{index}");
+            communicator.SendData($"{code}{tabString.Length:D5}{tabString}{index:D5}{newlineCount:D5}");
         }
 
         private void CopySelectedText()
@@ -239,6 +250,7 @@ namespace client_side
         {
             // Paste the clipboard content at the current caret position
             int index = txtFileContent.CaretIndex;
+            int newlineCount = txtFileContent.Text.Substring(0, index).Count(c => c == '\n');
             string clipboardContent = Clipboard.GetText();
 
             if (isButton) // if its comming from the button press it wont insert it automaticly
@@ -248,7 +260,7 @@ namespace client_side
             }
 
             string code = ((int)MessageCodes.MC_INSERT_REQUEST).ToString();
-            communicator.SendData($"{code}{clipboardContent.Length:D5}{clipboardContent}{index}");
+            communicator.SendData($"{code}{clipboardContent.Length:D5}{clipboardContent}{index:D5}{newlineCount:D5}");
         }
 
         private void cutSelectedText()
@@ -257,13 +269,14 @@ namespace client_side
             CopySelectedText();
 
             int index = txtFileContent.SelectionStart;
+            int newlineCount = txtFileContent.Text.Substring(0, index).Count(c => c == '\n');
             int selectionLength = txtFileContent.SelectionLength;
 
             string deletedText = txtFileContent.Text.Substring(index, selectionLength);
             txtFileContent.Text = txtFileContent.Text.Remove(index, selectionLength);
 
             string code = ((int)MessageCodes.MC_DELETE_REQUEST).ToString();
-            communicator.SendData($"{code}{selectionLength:D5}{index}"); // Delete action
+            communicator.SendData($"{code}{selectionLength:D5}{index:D5}{newlineCount:D5}"); // Delete action
 
             // Maintain the cursor position
             txtFileContent.CaretIndex = index;
@@ -272,6 +285,7 @@ namespace client_side
         private void HandleBackspace()
         {
             int index = txtFileContent.SelectionStart;
+            int newlineCount = txtFileContent.Text.Substring(0, index).Count(c => c == '\n');
             int selectionLength = txtFileContent.SelectionLength;
 
             string code = ((int)MessageCodes.MC_DELETE_REQUEST).ToString();
@@ -282,7 +296,7 @@ namespace client_side
                 string deletedText = txtFileContent.Text.Substring(index, selectionLength);
                 txtFileContent.Text = txtFileContent.Text.Remove(index, selectionLength);
 
-                communicator.SendData($"{code}{selectionLength:D5}{index}"); // Delete action
+                communicator.SendData($"{code}{selectionLength:D5}{index:D5}{newlineCount:D5}"); // Delete action
 
                 // Maintain the cursor position
                 txtFileContent.CaretIndex = index;
@@ -298,7 +312,7 @@ namespace client_side
                     string deletedLine = txtFileContent.Text.Substring(lineStartIndex, index - lineStartIndex);
                     txtFileContent.Text = txtFileContent.Text.Remove(lineStartIndex, index - lineStartIndex);
 
-                    communicator.SendData($"{code}{deletedLine.Length:D5}{lineStartIndex}"); // Delete action for the entire line
+                    communicator.SendData($"{code}{deletedLine.Length:D5}{lineStartIndex:D5}{newlineCount:D5}"); // Delete action for the entire line
 
                     // Maintain the cursor position
                     txtFileContent.CaretIndex = lineStartIndex;
@@ -308,7 +322,7 @@ namespace client_side
                     // Delete a single character at the current index
                     txtFileContent.Text = txtFileContent.Text.Remove(index - 1, 1);
 
-                    communicator.SendData($"{code}00001{index - 1}"); // Delete action with length 1
+                    communicator.SendData($"{code}00001{(index - 1):D5}00000"); // Delete action with length 1
                                                                       // Maintain the cursor position
                     txtFileContent.CaretIndex = index - 1;
                 }
@@ -499,13 +513,13 @@ namespace client_side
         private void HandleInsertResponse(string update)
         {
             int currentIndex = txtFileContent.CaretIndex;
-            // Insert message format: "202{lenOfInput}{input}{index}"
+            // Insert message format: "202{lenOfInput}{input}{index}{newLineCount}"
             int lenIndex = 3; // Start index of lenOfInput
             int lenOfInput = int.Parse(update.Substring(lenIndex, 5));
             int inputIndex = lenIndex + 5;
             string input = update.Substring(inputIndex, lenOfInput);
             int indexIndex = inputIndex + lenOfInput;
-            int index = int.Parse(update.Substring(indexIndex));
+            int index = int.Parse(update.Substring(indexIndex, 5));
 
             // Update the TextBox with the new input at the specified index
             Dispatcher.Invoke(() =>
@@ -535,13 +549,12 @@ namespace client_side
         private void HandleDeleteResponse(string update)
         {
             int currentIndex = txtFileContent.CaretIndex;
-            // Delete message format: "{code}{length}{index}"
+            // Delete message format: "{code}{length}{index}{newLineCount}"
             int lengthIndex = 3; // Start index of length
             int length = int.Parse(update.Substring(lengthIndex, 5));
 
             int indexIndex = lengthIndex + 5; // Start index of index
-            int indexLength = update.Length - indexIndex; // Determine the length of the index part
-            int index = int.Parse(update.Substring(indexIndex, indexLength));
+            int index = int.Parse(update.Substring(indexIndex, 5));
 
             // Update the TextBox by removing the specified length of characters at the specified index
             Dispatcher.Invoke(() =>
@@ -554,7 +567,12 @@ namespace client_side
                     txtFileContent.Text = sb.ToString();
 
                     // Check if the new index is after an inserted character
-                    if (currentIndex > index)
+                    if (length == txtFileContent.Text.Length)
+                    {
+                        txtFileContent.CaretIndex = 0;
+
+                    }
+                    else if (currentIndex > index)
                     {
                         // Adjust the caret index based on the length of the removed text
                         txtFileContent.CaretIndex = currentIndex - length;
@@ -571,7 +589,7 @@ namespace client_side
         private void HandleReplaceResponse(string update)
         {
             int currentIndex = txtFileContent.CaretIndex;
-            // Replace message format: "{code}{lengthToRemove}{replacementTextLength}{replacementText}{index}"
+            // Replace message format: "{code}{lengthToRemove}{replacementTextLength}{replacementText}{index}{newLineCount}"
 
             // Extract information from the response
             int lengthToRemoveIndex = 3; // Start index of lengthToRemove
@@ -584,7 +602,7 @@ namespace client_side
             string replacementText = update.Substring(replacementTextIndex, replacementTextLength);
 
             int indexIndex = replacementTextIndex + replacementTextLength; // Start index of index
-            int index = int.Parse(update.Substring(indexIndex, update.Length - indexIndex));
+            int index = int.Parse(update.Substring(indexIndex, 5));
 
             // Update the TextBox by removing the specified length of characters and inserting the replacement text at the specified index
             Dispatcher.Invoke(() =>
@@ -616,18 +634,16 @@ namespace client_side
         {
             try
             {
-                int messageCodeLength = 3;
-                string messageCode = update.Substring(0, messageCodeLength);
+                int dataLength = int.Parse(update.Substring(3, 5));
 
-                int messageLength = int.Parse(update.Substring(3, 5));
+                // Extract data from the response
+                string data = update.Substring(8, dataLength);
 
-                int messageTextIndex = 8;
-                string messageText = update.Substring(messageTextIndex, messageLength);
+                // Extract user name for each message
+                int userNameLen = int.Parse(update.Substring(8 + dataLength, 5));
+                string userName = update.Substring(13 + dataLength, userNameLen);
 
-                int userIdIndex = 8 + messageLength; 
-                int userId = int.Parse(update.Substring(userIdIndex, 5));
-
-                AppendChatMessage($"{userId}: {messageText}");
+                AppendChatMessage($"{userName}: {data}"); 
             }
             catch (Exception ex)
             {
@@ -778,7 +794,7 @@ namespace client_side
                         string data = initialContent.Substring(currentIndex, dataLength);
                         currentIndex += dataLength;
 
-                        // Extract user ID for each message
+                        // Extract user name for each message
                         int userNameLen = int.Parse(initialContent.Substring(currentIndex, 5));
                         currentIndex += 5;
 

@@ -209,6 +209,7 @@ namespace client_side
                             break;
 
                         case "302": // MC_APPROVE_RESP
+                            //communicator.UserFileIndex = int.Parse(update.Substring(3));
                             break;
 
                         default:
