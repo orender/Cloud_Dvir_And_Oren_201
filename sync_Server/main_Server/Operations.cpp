@@ -43,6 +43,34 @@ void Operations::deleteContent(std::fstream& file, const int& lengthToDelete, co
     file.close();
 }
 
+void Operations::replace(std::fstream& file, const int& selectionLength, const std::string& replacementText, const int& index, std::string name)
+{
+    // Read the entire content of the file into a string
+    std::stringstream contentBuffer;
+    contentBuffer << file.rdbuf();
+    std::string fileContent = contentBuffer.str();
+    // Check if the deletion index is within the bounds of the file content
+    if (index >= 0 && index < fileContent.length()) {
+        // Modify the content in memory
+        fileContent.erase(index, selectionLength);
+        fileContent.insert(index, replacementText);
+
+        // Clear the content of the file
+        file.seekp(0, std::ios::beg);
+        file.close();
+
+        // Open the file again to truncate it
+        file.open(name, std::ios::out | std::ios::trunc);
+
+        // Write the modified content back to the file
+        file << fileContent;
+    }
+
+    // Close the file
+    file.close();
+}
+
+/*
 void Operations::replace(std::fstream& file, const int& selectionLength, const std::string& replacementText, const int& index)
 {
     // Move the file pointer to the replacement index
@@ -65,3 +93,4 @@ void Operations::replace(std::fstream& file, const int& selectionLength, const s
     // Write the replacementText
     file << replacementText + copyText;
 }
+*/

@@ -106,17 +106,22 @@ bool SqliteDataBase::open()
 	if (file_exist != 0) {
 		std::string msg;
 
-		msg = "CREATE TABLE users ("
+		msg = "CREATE TABLE 'users' ("
 			" id INTEGER PRIMARY KEY AUTOINCREMENT,"
 			" user_name TEXT UNIQUE NOT NULL,"
 			" password TEXT NOT NULL,"
 			" mail TEXT NOT NULL);";
 		send(_db, msg);
-		msg = "CREATE TABLE chats ("
+		msg = "CREATE TABLE 'chats' ("
 			" id INTEGER PRIMARY KEY AUTOINCREMENT,"
 			" fileName TEXT UNIQUE NOT NULL,"
 			" data TEXT NOT NULL);";
 		send(_db, msg);
+		msg = "CREATE TABLE 'indexes' ("
+			"userId	INTEGER,"
+			"lastIndex	INTEGER NOT NULL,"
+			"fileName	TEXT NOT NULL,"
+			"FOREIGN KEY(userId) REFERENCES users(id));";
 
 
 	}
@@ -280,4 +285,52 @@ std::string SqliteDataBase::GetChatData(const std::string& fileName)
 			return data.data;
 		}
 	}
+}
+
+void SqliteDataBase::updateIndex(std::string username, std::string fileName, int index)
+{
+	std::string msg;
+	msg = "UPDATE indexes SET lastIndex = " + std::to_string(index) +
+		" WHERE fileName = \'" + fileName + "\' AND userId = " + std::to_string(getUserId(username)) + ";";
+
+	send(_db, msg);
+}
+
+int SqliteDataBase::getIndex(std::string username, std::string fileName)
+{
+	std::string msg;
+
+	// Assuming 'fileName' is a unique identifier in the 'chats' table
+
+	msg = "SELECT lastIndex FROM indexes WHERE fileName = \'" + fileName + "\' AND userId = " + std::to_string(getUserId(username)) + ";";
+
+	std::list<std::string> list_data;
+	send_data(_db, msg, &list_data);
+	int index;
+
+	if (list_data.empty())
+	{
+		throw std::exception("Failed to find user last index");
+	}
+	for (const auto& per : list_data)
+	{
+		index = atoi(per.c_str());
+	}
+	return index;
+}
+
+void SqliteDataBase::addIndex(std::string username, std::string fileName)
+{
+	std::string msg;
+	msg = "INSERT INTO indexes (userId, fileName, lastIndex) VALUES (" +
+		std::to_string(getUserId(username)) + ", \'" + fileName + "\', " + std::to_string(0) + ");";
+	send(_db, msg);
+}
+
+void SqliteDataBase::deleteIndex(std::string username, std::string fileName)
+{
+	std::string msg;
+	msg = "DELETE FROM indexes WHERE fileName = \'" + fileName +
+		"\' AND userId = " + std::to_string(getUserId(username)) + ";";
+	send(_db, msg);
 }

@@ -28,6 +28,7 @@ struct Action
     std::string dataLength;
     std::string data;
     std::string index;
+    std::string newLineCount;
     std::string selectionLength;
 
     long long timestamp; // Timestamp indicating when the action was created
@@ -54,7 +55,7 @@ class Communicator {
 private:
     SOCKET m_serverSocket;
     std::map<SOCKET, Client*> m_clients; 
-    std::map<std::string, Action> m_lastActionMap; // fileName : <lastAction, index>
+    std::map<std::string, std::vector<Action>> m_lastActionMap; // fileName : <lastAction, index>
     std::map<std::string, std::vector<Client>> m_usersOnFile; // fileName : users
     std::vector<std::string> m_files;
 

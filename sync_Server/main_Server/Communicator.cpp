@@ -53,6 +53,7 @@ void Communicator::handleNewClient(SOCKET client_sock)
 	std::string lengthString;
 	std::string initialFileContent;
 
+	fileOperationHandler.getFilesInDirectory(".\\files", m_files);
 	while (run)
 	{
 		try
@@ -129,6 +130,11 @@ void Communicator::handleNewClient(SOCKET client_sock)
 					m_clients[client_sock] = client_handler;
 					initialFileContent = repCode + std::to_string(client_handler->getId());
 					Helper::sendData(client_sock, BUFFER(initialFileContent.begin(), initialFileContent.end()));
+
+					for (const auto file : m_files)
+					{
+						m_database->addIndex(file, reqDetail.userName);
+					}
 				}
 				else
 				{
@@ -170,7 +176,7 @@ void Communicator::handleNewClient(SOCKET client_sock)
 				lengthString = std::string(5 - lengthString.length(), '0') + lengthString;
 
 				emptyAction.code = MC_INITIAL_REQUEST;
-				m_lastActionMap[".\\files\\" + reqDetail.data] = emptyAction;
+				m_lastActionMap[".\\files\\" + reqDetail.data].push_back(emptyAction);
 
 				// Create the initialFileContent string
 				initialFileContent = repCode + lengthString + fileContent;
@@ -187,6 +193,7 @@ void Communicator::handleNewClient(SOCKET client_sock)
 				}
 				else
 				{
+					// TODO add create index refrence to each user on the new file
 					// File doesn't exist, create it and send a success response code
 					repCode = std::to_string(MC_APPROVE_RESP);
 					Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
@@ -205,13 +212,21 @@ void Communicator::handleNewClient(SOCKET client_sock)
 					send = false;
 
 					emptyAction.code = MC_CREATE_FILE_REQUEST;
-					m_lastActionMap[".\\files\\" + reqDetail.data + ".txt"] = emptyAction;
+					m_lastActionMap[".\\files\\" + reqDetail.data + ".txt"].push_back(emptyAction);
 					m_usersOnFile[".\\files\\" + reqDetail.data + ".txt"].push_back(*m_clients[client_sock]);
+
+					/*
+					for (const auto user : m_clients)
+					{
+						m_database->addIndex(reqDetail.data + ".txt", user.second->getUsername());
+					}
+					*/
 				}
 				break;
 
 			case MC_DELETE_FILE_REQUEST:
 				// Check if someone is using the file
+				// TODO delete index refrences at data base
 				if (m_usersOnFile.find(".\\files\\" + reqDetail.data + ".txt") != m_usersOnFile.end() 
 					&& !m_usersOnFile[".\\files\\" + reqDetail.data + ".txt"].empty())
 				{
@@ -278,7 +293,8 @@ void Communicator::handleNewClient(SOCKET client_sock)
 				break;
 
 			case MC_JOIN_FILE_REQUEST:
-				repCode = std::to_string(MC_APPROVE_RESP);
+				// TODO add request for the last index in the file
+				repCode = std::to_string(MC_APPROVE_RESP); //+ std::to_string(m_database->getIndex(m_clients[client_sock]->getUsername(), reqDetail.data));
 				Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
 
 				repCode = std::to_string(MC_JOIN_FILE_RESP);
@@ -297,11 +313,14 @@ void Communicator::handleNewClient(SOCKET client_sock)
 				send = false;
 				break;
 			case MC_LEAVE_FILE_REQUEST:
+				// TODO add change data base for the last index in the file
 				repCode = std::to_string(MC_APPROVE_RESP);
 				Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
 
 				repCode = std::to_string(MC_LEAVE_FILE_RESP);
 				reqDetail.fileName = m_clients[client_sock]->getFileName();
+
+				//m_database->updateIndex(m_clients[client_sock]->getUsername(), reqDetail.fileName, std::stoi(reqDetail.data));
 
 				for (auto it = m_usersOnFile.begin(); it != m_usersOnFile.end(); ++it) {
 					// Iterate over the array of clients for each file
@@ -353,7 +372,7 @@ void Communicator::handleNewClient(SOCKET client_sock)
 					notifyAllClients(repCode + reqDetail.msg, client_sock, true);
 
 					reqDetail.timestamp = getCurrentTimestamp();
-					m_lastActionMap[fileName] = reqDetail;
+					m_lastActionMap[fileName].push_back(reqDetail);
 				}// lock goes out of scope, releasing the lock
 
 			}
@@ -398,58 +417,74 @@ Action Communicator::adjustIndexForSync(const std::string& fileName, Action reqD
 	// Check if there is a last action recorded for this file
 	if (m_lastActionMap.find(fileName) != m_lastActionMap.end())
 	{
-		int lastUser = m_lastActionMap[fileName].userId;
-		long long lastTimestamp = m_lastActionMap[fileName].timestamp;
-		if (m_lastActionMap[fileName].code != MC_INITIAL_REQUEST && 
-			m_lastActionMap[fileName].code != MC_CREATE_FILE_REQUEST &&
-			lastUser != reqDetail.userId && 
-			lastTimestamp > reqDetail.timestamp)
+		std::vector<Action>& lastActions = m_lastActionMap[fileName];
+
+		// Use an iterator to iterate over the vector
+		auto it = lastActions.begin();
+
+		// Iterate over all last actions for the file
+		while (it != lastActions.end())
 		{
-			int lastActionCode = m_lastActionMap[fileName].code;
-			int size = m_lastActionMap[fileName].size;
-			int lastIndex = std::stoi(m_lastActionMap[fileName].index);
+			const Action& action = *it;
 
-			std::string newAction = reqDetail.msg;
+			// Check if the new action was created before the current last action and by a different user
+			if (reqDetail.timestamp < action.timestamp && reqDetail.userId != action.userId
+				&& action.code != MC_INITIAL_REQUEST && action.code != MC_CREATE_FILE_REQUEST)
+			{
+				int lastActionCode = action.code;
+				int size = action.size;
+				int lastIndex = std::stoi(action.index);
 
-			std::string adjustedIndex = reqDetail.index;
-			std::string updatedAction = newAction;
+				std::string newAction = reqDetail.msg;
 
-			newIndex = std::stoi(reqDetail.index);
+				std::string adjustedIndex = reqDetail.index;
+				std::string updatedAction = newAction;
 
-			//reqDetail.timestamp = getCurrentTimestamp();
+				newIndex = std::stoi(reqDetail.index);
 
-			// uodate the index
-			switch (lastActionCode) {
-			case MC_INSERT_REQUEST:
-				if (newIndex > lastIndex)
-				{
-					newIndex += size;
-					adjustedIndex = std::to_string(newIndex);
-					adjustedIndex = std::string(5 - adjustedIndex.length(), '0') + adjustedIndex;
-					updatedAction = reqDetail.dataLength + reqDetail.data + adjustedIndex;
+				//reqDetail.timestamp = getCurrentTimestamp();
+
+				// uodate the index
+				switch (lastActionCode) {
+				case MC_INSERT_REQUEST:
+					if (newIndex > lastIndex)
+					{
+						newIndex += size;
+						adjustedIndex = std::to_string(newIndex);
+						adjustedIndex = std::string(5 - adjustedIndex.length(), '0') + adjustedIndex;
+						updatedAction = reqDetail.dataLength + reqDetail.data + adjustedIndex;
+					}
+					break;
+				case MC_DELETE_REQUEST:
+					if (newIndex > lastIndex)
+					{
+						newIndex -= size;
+						adjustedIndex = std::to_string(newIndex);
+						adjustedIndex = std::string(5 - adjustedIndex.length(), '0') + adjustedIndex;
+						updatedAction = reqDetail.dataLength + adjustedIndex;
+					}
+					break;
+				case MC_REPLACE_REQUEST:
+					if (newIndex > lastIndex)
+					{
+						newIndex = newIndex - std::stoi(reqDetail.selectionLength) + std::stoi(reqDetail.dataLength);
+						adjustedIndex = std::to_string(newIndex);
+						adjustedIndex = std::string(5 - adjustedIndex.length(), '0') + adjustedIndex;
+						updatedAction = reqDetail.selectionLength + reqDetail.dataLength + reqDetail.data + adjustedIndex;
+					}
+					break;
 				}
-				break;
-			case MC_DELETE_REQUEST:
-				if (newIndex > lastIndex)
-				{
-					newIndex -= size;
-					adjustedIndex = std::to_string(newIndex);
-					adjustedIndex = std::string(5 - adjustedIndex.length(), '0') + adjustedIndex;
-					updatedAction = reqDetail.dataLength + adjustedIndex;
-				}
-				break;
-			case MC_REPLACE_REQUEST:
-				if (newIndex > lastIndex)
-				{
-					newIndex = newIndex - std::stoi(reqDetail.selectionLength) + std::stoi(reqDetail.dataLength) ;
-					adjustedIndex = std::to_string(newIndex);
-					adjustedIndex = std::string(5 - adjustedIndex.length(), '0') + adjustedIndex;
-					updatedAction = reqDetail.selectionLength + reqDetail.dataLength + reqDetail.data + adjustedIndex;
-				}
-				break;
+				reqDetail.index = adjustedIndex;
+				reqDetail.msg = updatedAction;
 			}
-			reqDetail.index = adjustedIndex;
-			reqDetail.msg = updatedAction;
+			else if(reqDetail.timestamp > action.timestamp)
+			{
+				it = lastActions.erase(it);
+			}
+			if (!lastActions.empty())
+			{
+				++it;
+			}
 		}
 	}
 	return reqDetail;
@@ -519,15 +554,18 @@ Action Communicator::deconstructReq(const std::string& req) {
 		newAction.size = std::stoi(newAction.dataLength);
 
 		newAction.data = action.substr(5, newAction.size);
-		newAction.index = action.substr(5 + newAction.size);
+		newAction.index = action.substr(5 + newAction.size, 5);
+		newAction.newLineCount = action.substr(10 + newAction.size, 5);
+		newAction.size += std::stoi(newAction.newLineCount);
 		break;
 
 	case MC_DELETE_REQUEST:
 		newAction.dataLength = action.substr(0, 5);
-		indexString = action.substr(5);
+		indexString = action.substr(5, 5);
 
 		newAction.size = std::stoi(newAction.dataLength);
 		newAction.index = indexString;
+		newAction.newLineCount = action.substr(10, 5);
 		break;
 
 	case MC_REPLACE_REQUEST:
@@ -535,8 +573,9 @@ Action Communicator::deconstructReq(const std::string& req) {
 		newAction.dataLength = action.substr(5, 5);
 		newAction.size = std::stoi(newAction.dataLength);
 		newAction.data = action.substr(10, newAction.size);
-		indexString = action.substr(10 + newAction.size);
+		indexString = action.substr(10 + newAction.size, 5);
 		newAction.index = indexString;
+		newAction.newLineCount = action.substr(15 + newAction.size, 5);
 		break;
 	case MC_CREATE_FILE_REQUEST:
 		newAction.data = action;
@@ -607,17 +646,19 @@ void Communicator::updateFileOnServer(const std::string& filePath, const Action&
 		switch (reqDetail.code) {
 		case MC_INSERT_REQUEST:
 			// Insert operation
-			operationHandler.insert(file, reqDetail.data, std::stoi(reqDetail.index));
+			operationHandler.insert(file, reqDetail.data, (std::stoi(reqDetail.index) + std::stoi(reqDetail.newLineCount)));
 			break;
 
 		case MC_DELETE_REQUEST:
 			// Delete operation
-			operationHandler.deleteContent(file, std::stoi(reqDetail.dataLength), std::stoi(reqDetail.index), reqDetail.fileName);
+			operationHandler.deleteContent(file, std::stoi(reqDetail.dataLength), (std::stoi(reqDetail.index) + std::stoi(reqDetail.newLineCount)),
+				reqDetail.fileName);
 			break;
 
 		case MC_REPLACE_REQUEST:
 			// Replace operation
-			operationHandler.replace(file, std::stoi(reqDetail.selectionLength), reqDetail.data, std::stoi(reqDetail.index));
+			operationHandler.replace(file, std::stoi(reqDetail.selectionLength), reqDetail.data,
+				(std::stoi(reqDetail.index) + std::stoi(reqDetail.newLineCount)), reqDetail.fileName);
 			break;
 
 		default:

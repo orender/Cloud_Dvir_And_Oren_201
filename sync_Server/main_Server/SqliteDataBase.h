@@ -18,6 +18,7 @@ public:
 	bool addNewUser(std::string username, std::string password, std::string email) override;
 	int getUserId(std::string username) override;
 	std::string getUserName(std::string username) override;
+	int getIndex(std::string username, std::string fileName) override;
 	std::string getEmail(std::string username) override;
 	std::list<Client> getAllUsers() override;
 	std::string GetChatData(const std::string& fileName) override;
@@ -25,6 +26,9 @@ public:
 	void UpdateChat(const std::string& fileName, const std::string& data) override;
 	void createChat(const std::string& fileName) override;
 	void DeleteChat(const std::string& fileName) override;
+	void updateIndex(std::string username, std::string fileName, int index) override;
+	void addIndex(std::string username, std::string fileName) override;
+	void deleteIndex(std::string username, std::string fileName) override;
 
 private:
 	sqlite3* _db;
