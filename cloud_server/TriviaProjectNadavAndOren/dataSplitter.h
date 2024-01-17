@@ -17,4 +17,5 @@ public:
 	dataSplitter(std::string db_name);
 	bool saveNewFile(std::string file_name, std::string file_data);
 	std::string getFileData(std::string file_name);
+	//bool deleteFile(std::string file_name);
 };

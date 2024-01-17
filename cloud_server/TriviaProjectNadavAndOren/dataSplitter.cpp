@@ -32,21 +32,21 @@ dataSplitter::dataSplitter(std::string db_name)
     unsigned int         PortContainer3 = 12355;
     unsigned int         PortContainer4 = 12360;
 
-    container c1 = *(new container("127.0.0.1", PortContainer1));
-    container c2 = *(new container("127.0.0.1", PortContainer2));
-    container c3 = *(new container("127.0.0.1", PortContainer3));
-    container c4 = *(new container("127.0.0.1", PortContainer4));
+    container* c1 = new container("127.0.0.1", PortContainer1);
+    container* c2 = new container("127.0.0.1", PortContainer2);
+    container* c3 = new container("127.0.0.1", PortContainer3);
+    container* c4 = new container("127.0.0.1", PortContainer4);
 
     //connect to containers
-    containers[sc1] = c1;
-    containers[sc2] = c2;
-    containers[sc3] = c3;
-    containers[sc4] = c4;
+    containers[sc1] = *c1;
+    containers[sc2] = *c2;
+    containers[sc3] = *c3;
+    containers[sc4] = *c4;
 
-    std::cout << c1.start() << std::endl;
-    std::cout << c2.start() << std::endl;
-    std::cout << c3.start() << std::endl;
-    std::cout << c4.start() << std::endl;
+    std::cout << c1->start() << std::endl;
+    std::cout << c2->start() << std::endl;
+    std::cout << c3->start() << std::endl;
+    std::cout << c4->start() << std::endl;
     
 
 
@@ -181,13 +181,18 @@ std::string dataSplitter::getFileData(std::string file_name)
             temp = containers[c1].getBlob(createSixDigitString(id, blobId));
             if (temp == failGet)
             {
-                file_data += containers[c2].getBlob(createSixDigitString(id, blobId));
+                temp = containers[c2].getBlob(createSixDigitString(id, blobId));
+                if (temp == failGet)
+                {
+                    return failGet;
+                }
+                file_data += temp;
             }
             else {
                 file_data += temp;
             }
         }
-        sqlite3_finalize(statement);
+        //sqlite3_finalize(statement);
         return file_data;
     }
     else {

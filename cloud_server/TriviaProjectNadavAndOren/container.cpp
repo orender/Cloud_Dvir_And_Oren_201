@@ -22,6 +22,8 @@ container::~container()
     writeMessage(69, "yuno miles == the goat", buffer, bufferSize);
 
 
+
+    std::cout << "nigger\n";
     send(_sock, buffer, bufferSize, 0);
     shutdown(_sock, SD_SEND);
     closesocket(_sock);
