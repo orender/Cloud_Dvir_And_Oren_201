@@ -22,6 +22,7 @@ container::~container()
     writeMessage(69, "yuno miles == the goat", buffer, bufferSize);
 
 
+
     send(_sock, buffer, bufferSize, 0);
     shutdown(_sock, SD_SEND);
     closesocket(_sock);
@@ -72,11 +73,11 @@ std::string container::getBlob(std::string id)
     return msg;
 }
 
-int container::deleteBlob(int id)
+int container::deleteBlob(std::string id)
 {
     char* buffer = new char[1024];
     size_t bufferSize;
-    writeMessage(deleteBlobCode, std::to_string(id), buffer, bufferSize);
+    writeMessage(deleteBlobCode, id, buffer, bufferSize);
 
 
     send(_sock, buffer, bufferSize, 0);

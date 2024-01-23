@@ -24,5 +24,5 @@ public:
 	int start();
 	int save(std::string SaveBlob, std::string id);
 	std::string getBlob(std::string id);
-	int deleteBlob(int id);
+	int deleteBlob(std::string id);
 };
