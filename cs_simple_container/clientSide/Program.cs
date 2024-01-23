@@ -132,7 +132,8 @@ enum Commands
 {
     save = 1,
     get = 2,
-    delete = 3
+    delete = 3,
+    getAll = 4
 }
 
 class Program
