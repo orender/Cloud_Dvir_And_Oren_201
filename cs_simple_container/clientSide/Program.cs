@@ -5,6 +5,7 @@ using System.Net.Sockets;
 using System;
 using System.Data;
 using System.Data.SQLite;
+using System.Security.Cryptography;
 
 public class BinaryProtocol
 {

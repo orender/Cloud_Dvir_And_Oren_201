@@ -3,4 +3,5 @@ WORKDIR /app
 COPY . .
 RUN dotnet restore
 RUN dotnet add package System.Data.SQLite
+EXPOSE 42011
 ENTRYPOINT ["dotnet", "run"]

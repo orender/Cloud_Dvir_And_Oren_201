@@ -1,0 +1,17 @@
+services:
+  c1:
+    image: c
+    ports:
+      - "12345:42011"
+  c2:
+    image: c
+    ports:
+        - "12350:42011"
+  c3:
+    image: c
+    ports:
+        - "12355:42011"
+  c4:
+    image: c
+    ports:
+        - "12360:42011"
