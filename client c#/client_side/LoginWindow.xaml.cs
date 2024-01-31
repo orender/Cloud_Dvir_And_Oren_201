@@ -109,7 +109,7 @@ namespace client_side
                     filesWindow.Show();
                     Close();
                 }
-                else if (rep == ((int)MessageCodes.MC_ERR_RESP).ToString()) 
+                else if (rep == ((int)MessageCodes.MC_ERROR_RESP).ToString()) 
                 {
                     lblErrMsg.Text = update.Substring(3);
                 }

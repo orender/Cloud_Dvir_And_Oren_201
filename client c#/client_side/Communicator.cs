@@ -1,19 +1,9 @@
-﻿using Microsoft.VisualBasic;
-using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using System;
+using System.IO;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
-using System.Security.Policy;
 using System.Text;
-using System.Text.Json;
-using System.Threading.Tasks;
 using System.Windows;
-using System.IO;
-using System.Threading;
-using System.Windows.Controls;
-using System.Windows.Input;
-using System.Windows.Media;
 
 namespace client_side
 {
@@ -27,13 +17,17 @@ namespace client_side
         MC_GET_FILES_REQUEST = 106,
         MC_CLOSE_FILE_REQUEST = 108,
         MC_GET_MESSAGES_REQUEST = 109,
-        MC_GET_USERS_REQUEST = 110,
+        MC_GET_USERS_ON_FILE_REQUEST = 110,
         MC_POST_MSG_REQUEST = 111,
         MC_JOIN_FILE_REQUEST = 112,
         MC_LEAVE_FILE_REQUEST = 113,
         MC_DELETE_FILE_REQUEST = 114,
+        MC_GET_USERS_REQUEST = 115,
+        MC_GET_USERS_PERMISSIONS_REQ_REQUEST = 116,
+        MC_APPROVE_PERMISSION_REQUEST = 117,
+        MC_REJECT_PERMISSION_REQUEST = 118,
 
-        MC_ERR_RESP = 200, //responses
+        MC_ERROR_RESP = 200, //responses
         MC_INITIAL_RESP = 201,
         MC_INSERT_RESP = 202,
         MC_DELETE_RESP = 203,
@@ -43,11 +37,15 @@ namespace client_side
         MC_ADD_FILE_RESP = 207,
         MC_CLOSE_FILE_RESP = 208,
         MC_GET_MESSAGES_RESP = 209,
-        MC_GET_USERS_RESP = 210,
+        MC_GET_USERS_ON_FILE_RESP = 210,
         MC_POST_MSG_RESP = 211,
         MC_JOIN_FILE_RESP = 212,
         MC_LEAVE_FILE_RESP = 213,
         MC_DELETE_FILE_RESP = 214,
+        MC_GET_USERS_RESP = 215,
+        MC_GET_USERS_PERMISSIONS_REQ_RESP = 216,
+        MC_APPROVE_PERMISSION_RESP = 217,
+        MC_REJECT_PERMISSION_RESP = 218,
 
         MC_DISCONNECT = 300, //user
         MC_LOGIN_REQUEST = 301,
@@ -85,7 +83,7 @@ namespace client_side
 
         public void SendData(string message)
         {
-            LogAction(message);
+            //LogAction(message);
             byte[] data = Encoding.UTF8.GetBytes(message);
             m_socket.Send(data);
         }
@@ -95,7 +93,7 @@ namespace client_side
             byte[] buffer = new byte[1024];  // Adjust the buffer size as needed
             int bytesRead = m_socket.Receive(buffer);
             string rep = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-            LogAction(rep);
+            //LogAction(rep);
             return rep;
         }
 
@@ -171,7 +169,7 @@ namespace client_side
         {
             try
             {
-                string logFilePath = "UserLog" + UserName + ".txt";
+                string logFilePath = "UserLog_" + UserName + ".txt";
 
                 // Append the action to the log file
                 File.AppendAllText(logFilePath, $"{DateTime.Now}: {action}\n");

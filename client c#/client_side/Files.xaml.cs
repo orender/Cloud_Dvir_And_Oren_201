@@ -38,11 +38,61 @@ namespace client_side
             lstFiles.KeyDown += LstFiles_KeyDown;
             txtNewFileName.KeyDown += TxtNewFileName_KeyDown;
 
-            string code = ((int)MessageCodes.MC_GET_FILES_REQUEST).ToString();
+            string code = ((int)MessageCodes.MC_GET_USERS_REQUEST).ToString();
             communicator.SendData($"{code}");
 
             string rep = communicator.ReceiveData();
             string repCode = rep.Substring(0, 3);
+
+            if (repCode == ((int)MessageCodes.MC_GET_USERS_RESP).ToString() &&
+                    rep.Length > 3)
+            {
+                List<string> users = new List<string>();
+
+                int currentIndex = 3;
+
+                // Extract each user from the response
+                while (currentIndex < rep.Length)
+                {
+                    int nameLength = int.Parse(rep.Substring(currentIndex, 5));
+                    currentIndex += 5;
+
+                    string name = rep.Substring(currentIndex, nameLength);
+                    currentIndex += nameLength;
+
+                    int fileLength = int.Parse(rep.Substring(currentIndex, 5)) + 2;
+                    currentIndex += 5;
+
+                    string fileName;
+                    if (fileLength > 2)
+                    {
+                        fileName = rep.Substring(currentIndex + 8, fileLength - 14);
+                    }
+                    else
+                    {
+                        fileName = rep.Substring(currentIndex, fileLength - 2);
+                    }
+                    currentIndex += fileLength - 2;
+
+                    if (fileName != "")
+                    {
+                        users.Add(name + " - \"" + fileName + "\"");
+                    }
+                    else
+                    {
+                        users.Add(name);
+                    }
+                }
+
+                // Update the user list in the UI
+                UpdateUserList(users);
+            }
+
+            code = ((int)MessageCodes.MC_GET_FILES_REQUEST).ToString();
+            communicator.SendData($"{code}");
+
+            rep = communicator.ReceiveData();
+            repCode = rep.Substring(0, 3);
 
             if (repCode == ((int)MessageCodes.MC_GET_FILES_RESP).ToString() && rep.Length > 3)
             {
@@ -88,7 +138,7 @@ namespace client_side
                 e.Handled = true;
                 Join(sender, e);
             }
-            if (e.Key == Key.Back) 
+            if (e.Key == Key.Back)
             {
                 remove(sender, e);
             }
@@ -105,8 +155,8 @@ namespace client_side
             FileModel selectedFile = lstFiles.SelectedItem as FileModel;
             if (selectedFile != null)
             {
-                disconnect = false;
-                isListeningToServer = false;
+                //disconnect = false;
+                //isListeningToServer = false;
                 string FileName = selectedFile.FileName;
                 string code = ((int)MessageCodes.MC_JOIN_FILE_REQUEST).ToString();
                 communicator.SendData($"{code}{FileName.Length:D5}{FileName}{communicator.UserId}");
@@ -115,6 +165,16 @@ namespace client_side
                 Close();
             }
 
+        }
+
+        private void BtnPermissionRequests_Click(object sender, RoutedEventArgs e)
+        {
+            disconnect = false;
+            isListeningToServer = false;
+            // Open a new window for permission requests
+            PermissionRequestsWindow permissionRequestsWindow = new PermissionRequestsWindow(communicator);
+            permissionRequestsWindow.Show();
+            Close();
         }
 
         private void remove(object sender, RoutedEventArgs e)
@@ -208,8 +268,24 @@ namespace client_side
                             HandleError(update);
                             break;
 
+                        case "212": // MC_JOIN_FILE_RESP
+                            HandleJoinFileResponse(update);
+                            break;
+
+                        case "213": // MC_LEAVE_FILE_RESP
+                            HandleLeaveFileResponse(update);
+                            break;
+
+                        case "401" or "403":
+                            HandleLogin(update);
+                            break;
+
+                        case "300":
+                            HandleDisconnect(update);
+                            break;
+
                         case "302": // MC_APPROVE_RESP
-                            //communicator.UserFileIndex = int.Parse(update.Substring(3));
+                            HandleJoinFile(update);
                             break;
 
                         default:
@@ -222,6 +298,18 @@ namespace client_side
             {
                 MessageBox.Show($"Error receiving server updates: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        private void HandleJoinFile(string update)
+        {
+            disconnect = false;
+            isListeningToServer = false;
+
+            int fileLength = int.Parse(update.Substring(3, 5));
+            string FileName = update.Substring(8, fileLength);
+            TextEditor TextEditorWindow = new TextEditor(communicator, FileName);
+            TextEditorWindow.Show();
+            Close();
         }
 
         private void HandleAddFile(string update)
@@ -279,10 +367,13 @@ namespace client_side
         private void HandleError(string update)
         {
             string msg = update.Substring (3);
-            Dispatcher.Invoke(() =>
+            MessageBox.Show($"Error: {msg}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+
+            /*Dispatcher.Invoke(() =>
             {
                 lblErr.Content = msg;
             });
+            */
         }
 
         private bool FileExists(string fileName)
@@ -297,6 +388,151 @@ namespace client_side
             return false;
         }
 
+        private void HandleJoinFileResponse(string update)
+        {
+            try
+            {
+                // Assuming the message format is "{code}{userNameLength}{userName}{fileNameLength}{FileName}"
+                int lengthIndex = 3;
+
+                // Extract user name length
+                int userNameLength = int.Parse(update.Substring(lengthIndex, 5));
+                lengthIndex += 5;
+
+                // Extract user name
+                string userName = update.Substring(lengthIndex, userNameLength);
+                lengthIndex += userNameLength;
+
+                // Extract file name length
+                int fileNameLength = int.Parse(update.Substring(lengthIndex, 5));
+                lengthIndex += 5;
+
+                // Extract file name
+                string fileName = update.Substring(lengthIndex, fileNameLength - 4);
+
+                // Find the index of the user in the list
+                int userIndex = -1;
+                Dispatcher.Invoke(() => userIndex = lstUserList.Items.IndexOf($"{userName}"));
+
+                // Update the item if found
+                if (userIndex != -1)
+                {
+                    Dispatcher.Invoke(() => lstUserList.Items[userIndex] = $"{userName} - \"{fileName}\"");
+                }
+                else
+                {
+                    // If not found, add it to the list
+                    Dispatcher.Invoke(() => lstUserList.Items.Add($"{userName} - \"{fileName}\""));
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error handling Join File response: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void HandleLeaveFileResponse(string update)
+        {
+            try
+            {
+                // Assuming the message format is "{code}{userNameLength}{userName}{fileNameLength}{FileName}"
+                int lengthIndex = 3;
+
+                // Extract user name length
+                int userNameLength = int.Parse(update.Substring(lengthIndex, 5));
+                lengthIndex += 5;
+
+                // Extract user name
+                string userName = update.Substring(lengthIndex, userNameLength);
+                lengthIndex += userNameLength;
+
+                // Extract file name length
+                int fileNameLength = int.Parse(update.Substring(lengthIndex, 5)) + 2;
+                lengthIndex += 5;
+
+                // Extract file name
+                string fileName = update.Substring(lengthIndex + 8, fileNameLength - 14);
+
+                // Find the index of the user in the list
+                int userIndex = -1;
+                Dispatcher.Invoke(() => userIndex = lstUserList.Items.IndexOf($"{userName} - \"{fileName}\""));
+
+                // Update the item if found
+                if (userIndex != -1)
+                {
+                    Dispatcher.Invoke(() => lstUserList.Items[userIndex] = $"{userName}");
+                }
+                else
+                {
+                    // If not found, add it to the list
+                    Dispatcher.Invoke(() => lstUserList.Items.Add($"{userName}"));
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error handling Leave File response: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void HandleLogin(string update)
+        {
+            try
+            {
+                // Assuming the message format is "{code}{userName}"
+                int nameIndex = 3;
+                // Extract user name
+                string userName = update.Substring(nameIndex);
+
+                // Find the index of the user in the list
+                int userIndex = -1;
+                Dispatcher.Invoke(() => lstUserList.Items.Add($"{userName}"));
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error handling Leave File response: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+
+        }
+
+        private void HandleDisconnect(string update)
+        {
+            try
+            {
+                // Assuming the message format is "{code}{userName}"
+                int nameIndex = 3;
+
+                // Extract user name
+                string userName = update.Substring(nameIndex);
+
+                // Try to remove the user with the file name first
+                Dispatcher.Invoke(() => lstUserList.Items.Remove($"{userName}"));
+
+                // If not found, try to remove the user without the file name
+                if (lstUserList.Items.Contains($"{userName}"))
+                {
+                    Dispatcher.Invoke(() => lstUserList.Items.Remove($"{userName}"));
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error handling Disconnect: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void UpdateUserList(IEnumerable<string> userList)
+        {
+            // Clear the current user list
+            Dispatcher.Invoke(() => lstUserList.Items.Clear());
+
+            // Add the updated user list
+            Dispatcher.Invoke(() =>
+            {
+                foreach (var user in userList)
+                {
+                    lstUserList.Items.Add(user);
+                }
+            });
+        }
     }
 
     public class FileModel

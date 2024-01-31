@@ -36,7 +36,7 @@
                      PreviewKeyDown="TextBoxInput_KeyDown" 
                      VerticalScrollBarVisibility="Auto" 
                      HorizontalScrollBarVisibility="Auto" 
-                     Margin="5,30,0,5" 
+                     Margin="5,30,10,5" 
                      TextChanged="txtFileContent_TextChanged" 
                      Cursor="Arrow"   
                      Background="Black"

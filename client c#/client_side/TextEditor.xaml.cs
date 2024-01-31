@@ -252,10 +252,17 @@ namespace client_side
             int index = txtFileContent.CaretIndex;
             int newlineCount = txtFileContent.Text.Substring(0, index).Count(c => c == '\n');
             string clipboardContent = Clipboard.GetText();
-
+            Clipboard.Clear();
+            clipboardContent = clipboardContent.Replace("\r\n", "\n");
             if (isButton) // if its comming from the button press it wont insert it automaticly
             {
                 txtFileContent.Text = txtFileContent.Text.Insert(index, clipboardContent);
+                txtFileContent.CaretIndex = index + clipboardContent.Length;
+            }
+            else
+            {
+                // If it's not coming from the button, insert automatically
+                txtFileContent.SelectedText = clipboardContent;
                 txtFileContent.CaretIndex = index + clipboardContent.Length;
             }
 
@@ -468,6 +475,10 @@ namespace client_side
 
                     switch (code)
                     {
+                        case "201":
+                            HandleInitial(update);
+                            break;
+
                         case "202": // MC_INSERT_RESP
                             HandleInsertResponse(update);
                             break;
@@ -494,9 +505,14 @@ namespace client_side
 
                         case "302": // MC_APPROVE_RESP
                             break;
- 
+
+                        case "200":
+                            HandleError(update);
+                            break;
+
                         case "300": // MC_DISCONNECT
-                            break; // TODO inform the client about him leaving
+                            HandleDiscconect(update);
+                            break; 
 
                         default:
                             throw new InvalidOperationException($"Unknown message code: {code}");
@@ -655,7 +671,7 @@ namespace client_side
         {
             try
             {
-                // Assuming the message format is "212{nameLength}{name}"
+                // Assuming the message format is "{code}{userNameLength}{userName}{fileNameLength}{FileName}"
                 int lengthIndex = 3;
                 int length = int.Parse(update.Substring(lengthIndex, 5));
 
@@ -674,7 +690,7 @@ namespace client_side
         {
             try
             {
-                // Assuming the message format is "213{nameLength}{name}"
+                // Assuming the message format is "{code}{userNameLength}{userName}{fileNameLength}{FileName}"
                 int lengthIndex = 3;
                 int length = int.Parse(update.Substring(lengthIndex, 5));
 
@@ -686,6 +702,82 @@ namespace client_side
             catch (Exception ex)
             {
                 MessageBox.Show($"Error handling Leave File response: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void HandleError(string update)
+        {
+            try
+            {
+                string lengthString = update.Substring(0, 5);
+                int length = int.Parse(lengthString);
+                string data = update.Substring(5);
+
+                // Ensure the length matches the actual data length
+                if (length == data.Length)
+                {
+                    // Update the TextBox with the initial content
+                    Dispatcher.Invoke(() =>
+                    {
+                        txtFileContent.Clear();
+                        txtFileContent.Text = data;
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error handling error response: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void HandleDiscconect(string update)
+        {
+            try
+            {
+
+                // Assuming the message format is "300{name}"
+                int lengthIndex = 3;
+
+                string name = update.Substring(lengthIndex);
+
+                // Process the leave file response as needed (e.g., update UI)
+                Dispatcher.Invoke(() => lstUserList.Items.Remove(name));
+
+
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error handling disconnect response: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void HandleInitial(string update)
+        {
+            try
+            {
+                string lengthString = update.Substring(0, 5);
+                int length = int.Parse(lengthString);
+                string data = update.Substring(5);
+
+                // Ensure the length matches the actual data length
+                if (length == data.Length)
+                {
+                    // Update the TextBox with the initial content
+                    Dispatcher.Invoke(() =>
+                    {
+                        txtFileContent.Clear();
+                        txtFileContent.Text = data;
+                    });
+                }
+                else
+                {
+                    // Handle the case where the length does not match the data length
+                    MessageBox.Show("Error: Length mismatch in initial content.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error: Length mismatch in initial content.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -733,12 +825,12 @@ namespace client_side
         {
             try
             {
-                string code = ((int)MessageCodes.MC_GET_USERS_REQUEST).ToString();
+                string code = ((int)MessageCodes.MC_GET_USERS_ON_FILE_REQUEST).ToString();
                 communicator.SendData($"{code}{fileName}");
                 string initialContent = communicator.ReceiveData();
                 string codeString = initialContent.Substring(0, 3);
 
-                if (codeString == ((int)MessageCodes.MC_GET_USERS_RESP).ToString() &&
+                if (codeString == ((int)MessageCodes.MC_GET_USERS_ON_FILE_RESP).ToString() &&
                     initialContent.Length > 3)
                 {
                     List<string> users = new List<string>();
@@ -940,7 +1032,6 @@ namespace client_side
                 }
             });
         }
-
 
         //           ******** Buttons ********* 
         private void SaveButton_Click(object sender, RoutedEventArgs e)
