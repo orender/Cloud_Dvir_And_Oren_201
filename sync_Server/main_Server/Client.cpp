@@ -1,7 +1,7 @@
 #include "Client.h"
 
 Client::Client(int clientId, std::string userName, std::string email)
-    : id(clientId), _userName(userName), _email(email)
+    : _id(clientId), _userName(userName), _email(email)
 {
     file_name = "";
 }  // Initialize the id field with the provided client ID
@@ -15,7 +15,7 @@ Client::~Client()
 }
 
 int Client::getId() const {
-    return id;
+    return _id;
 }
 
 std::string Client::getFileName() const
@@ -56,4 +56,9 @@ void Client::setEmail(const std::string newName)
 void Client::setPass(const std::string newName)
 {
     _pass = newName;
+}
+
+void Client::setId(const int id)
+{
+    _id = id;
 }

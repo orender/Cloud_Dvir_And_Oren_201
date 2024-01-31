@@ -12,6 +12,24 @@ struct Chat
 	std::string data;
 };
 
+struct PermissionReq
+{
+	int fileId;
+	int userId;
+};
+
+struct Permission
+{
+	int fileId;
+};
+
+struct FileDetail
+{
+	int creatorId;
+	int fileId;
+	std::string fileName;
+};
+
 class IDatabase
 {
 public:
@@ -23,16 +41,22 @@ public:
 
 	virtual bool addNewUser(std::string username, std::string password, std::string email) = 0;
 	virtual int getUserId(std::string username) = 0;
-	virtual int getIndex(std::string username, std::string fileName) = 0;
-	virtual std::string getUserName(std::string username) = 0;
+	virtual std::string getUserName(std::string username, int id) = 0;
 	virtual std::string getEmail(std::string username) = 0;
 	virtual std::list<Client> getAllUsers() = 0;
 	virtual std::string GetChatData(const std::string& fileName) = 0;
+	virtual std::list<Permission> getUserPermissions(int userId) = 0;
+	virtual std::list<PermissionReq> getPermissionRequests(int userId) = 0;
+	virtual std::string getFileName(const int fileId) = 0;
+	virtual FileDetail getFileDetails(const std::string& fileName) = 0;
 
 	virtual void UpdateChat(const std::string& fileName, const std::string& data) = 0;
 	virtual void createChat(const std::string& fileName) = 0;
 	virtual void DeleteChat(const std::string& fileName) = 0;
-	virtual void updateIndex(std::string username, std::string fileName, int index) = 0;
-	virtual void addIndex(std::string username, std::string fileName) = 0;
-	virtual void deleteIndex(std::string username, std::string fileName) = 0;
+	virtual void addPermissionRequest(int userId, int fileId, int creatorId) = 0;
+	virtual void addUserPermission(int userId, int fileId) = 0;
+	virtual void addFile(int userId, const std::string& fileName) = 0;
+	virtual void deleteFile(const std::string& fileName) = 0;
+	virtual void deletePermissionRequests(int userId, int fileId) = 0;
+	virtual void deletePermission(int fileId) = 0;
 };

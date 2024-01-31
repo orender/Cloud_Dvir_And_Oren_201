@@ -6,14 +6,23 @@ Communicator::Communicator()
 	// this server use TCP. that why SOCK_STREAM & IPPROTO_TCP
 	// if the server use UDP we will use: SOCK_DGRAM & IPPROTO_UDP
 	m_serverSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	m_cloudServerSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (m_serverSocket == INVALID_SOCKET)
 		throw std::exception("Failed to initialize server socket.");
+	if (m_cloudServerSocket == INVALID_SOCKET)
+		throw std::exception("Failed to initialize cloud server socket.");
+
+	/*if (connect(m_cloudSocket, (struct sockaddr*)&cloudServerAddr, sizeof(cloudServerAddr)) == SOCKET_ERROR)
+            throw std::exception("Failed to connect to cloud server.");
+
+	*/
 }
 
 // Destructor
 Communicator::~Communicator() {
 	try {
 		closesocket(m_serverSocket);
+		closesocket(m_cloudServerSocket);
 	}
 	catch (...) {}
 }
@@ -52,8 +61,16 @@ void Communicator::handleNewClient(SOCKET client_sock)
 	std::string fileContent;
 	std::string lengthString;
 	std::string initialFileContent;
+	FileDetail fileList;
 
-	fileOperationHandler.getFilesInDirectory(".\\files", m_files);
+	bool hasPermission;
+	
+	fileOperationHandler.getFilesInDirectory(".\\files", m_fileNames);
+	for (const auto& fileName : m_fileNames)
+	{
+		fileList = m_database->getFileDetails(fileName.first);
+		m_fileNames[fileName.first] = fileList.fileId;
+	}
 	while (run)
 	{
 		try
@@ -102,22 +119,25 @@ void Communicator::handleNewClient(SOCKET client_sock)
 				// If the response has been sent, don't proceed to the second condition
 				if (!send)
 				{
-					send = false;
 					if (m_database->doesUserExist(reqDetail.userName) && m_database->doesPasswordMatch(reqDetail.userName, reqDetail.pass))
 					{
 						repCode = std::to_string(MC_LOGIN_RESP);
-						reqDetail.userName = m_database->getUserName(reqDetail.email);
+						reqDetail.userName = m_database->getUserName(reqDetail.email, -1);
 						reqDetail.email = m_database->getEmail(reqDetail.userName);
 						Client* client_handler = new Client(m_database->getUserId(reqDetail.userName), reqDetail.userName, reqDetail.email);
 						m_clients[client_sock] = client_handler;
 						initialFileContent = repCode + std::to_string(client_handler->getId());
 						Helper::sendData(client_sock, BUFFER(initialFileContent.begin(), initialFileContent.end()));
+
+						repCode += reqDetail.userName;
+						notifyAllClients(repCode, client_sock, false);
 					}
 					else
 					{
 						throw std::exception("invalid username or password.");
 					}
 				}
+				send = false;
 				break;
 
 			case MC_SIGNUP_REQUEST:
@@ -131,10 +151,8 @@ void Communicator::handleNewClient(SOCKET client_sock)
 					initialFileContent = repCode + std::to_string(client_handler->getId());
 					Helper::sendData(client_sock, BUFFER(initialFileContent.begin(), initialFileContent.end()));
 
-					for (const auto file : m_files)
-					{
-						m_database->addIndex(file, reqDetail.userName);
-					}
+					repCode += reqDetail.userName;
+					notifyAllClients(repCode, client_sock, false);
 				}
 				else
 				{
@@ -168,9 +186,13 @@ void Communicator::handleNewClient(SOCKET client_sock)
 
 				break;
 
-			case MC_INITIAL_REQUEST:
+			case MC_INITIAL_REQUEST: // get data from cloud
 				repCode = std::to_string(MC_INITIAL_RESP);
 				fileContent = fileOperationHandler.readFromFile(".\\files\\" + reqDetail.data);
+				m_filesData[".\\files\\" + reqDetail.data] = fileContent;
+				//m_filesData[fileName] = fileContent;
+
+				m_FileUpdate[".\\files\\" + reqDetail.data] = false;
 				// Convert the length to a string with exactly 5 digits
 				lengthString = std::to_string(fileContent.length());
 				lengthString = std::string(5 - lengthString.length(), '0') + lengthString;
@@ -193,16 +215,22 @@ void Communicator::handleNewClient(SOCKET client_sock)
 				}
 				else
 				{
-					// TODO add create index refrence to each user on the new file
 					// File doesn't exist, create it and send a success response code
 					repCode = std::to_string(MC_APPROVE_RESP);
 					Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
-
+					
+					// send to cloud msg
+					
 					// Create the mutex for the new file
 					m_fileMutexes[".\\files\\" + reqDetail.data + ".txt"];
 					fileOperationHandler.createFile(".\\files\\" + reqDetail.data + ".txt", true);
 					m_database->createChat(reqDetail.data);
-					m_files.push_back(reqDetail.data + ".txt");
+					m_database->addFile(m_clients[client_sock]->getId(), reqDetail.data + ".txt");
+
+					fileList = m_database->getFileDetails(reqDetail.data + ".txt");
+					m_fileNames[reqDetail.data + ".txt"] = fileList.fileId;
+
+					m_database->addUserPermission(m_clients[client_sock]->getId(), m_fileNames[reqDetail.data]);
 
 					repCode = std::to_string(MC_ADD_FILE_RESP) + reqDetail.data + ".txt";
 					m_clients[client_sock]->setFileName(".\\files\\" + reqDetail.data + ".txt");
@@ -215,18 +243,23 @@ void Communicator::handleNewClient(SOCKET client_sock)
 					m_lastActionMap[".\\files\\" + reqDetail.data + ".txt"].push_back(emptyAction);
 					m_usersOnFile[".\\files\\" + reqDetail.data + ".txt"].push_back(*m_clients[client_sock]);
 
-					/*
-					for (const auto user : m_clients)
-					{
-						m_database->addIndex(reqDetail.data + ".txt", user.second->getUsername());
-					}
-					*/
+					repCode = std::to_string(MC_JOIN_FILE_RESP);
+
+					lengthString = std::to_string((m_clients[client_sock]->getUsername().length()));
+					lengthString = std::string(5 - lengthString.length(), '0') + lengthString;
+					repCode += lengthString + m_clients[client_sock]->getUsername();
+
+					reqDetail.data += ".txt";
+					lengthString = std::to_string((reqDetail.data.length()));
+					lengthString = std::string(5 - lengthString.length(), '0') + lengthString;
+					repCode += lengthString + reqDetail.data;
+
+					notifyAllClients(repCode, client_sock, false);
 				}
 				break;
 
 			case MC_DELETE_FILE_REQUEST:
 				// Check if someone is using the file
-				// TODO delete index refrences at data base
 				if (m_usersOnFile.find(".\\files\\" + reqDetail.data + ".txt") != m_usersOnFile.end() 
 					&& !m_usersOnFile[".\\files\\" + reqDetail.data + ".txt"].empty())
 				{
@@ -235,9 +268,15 @@ void Communicator::handleNewClient(SOCKET client_sock)
 				else
 				{
 					repCode = std::to_string(MC_DELETE_FILE_RESP) + reqDetail.data + ".txt";
-					m_files.erase(std::find(m_files.begin(), m_files.end(), reqDetail.data + ".txt"));
+
+					// send to cloud msg
+
+					m_fileNames.erase(reqDetail.data + ".txt");
 					fileOperationHandler.deleteFile(".\\files\\" + reqDetail.data + ".txt");
 					m_database->DeleteChat(reqDetail.data);
+					m_database->deleteFile(reqDetail.data + ".txt");
+					m_database->deletePermission(m_fileNames[reqDetail.data + ".txt"]);
+					
 					Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
 					notifyAllClients(repCode, client_sock, false);
 				}
@@ -247,12 +286,12 @@ void Communicator::handleNewClient(SOCKET client_sock)
 			case MC_GET_FILES_REQUEST:
 				repCode = std::to_string(MC_GET_FILES_RESP);
 				send = false;
-				fileOperationHandler.getFilesInDirectory(".\\files", m_files);
-				for (const auto& fileName : m_files)
+				fileOperationHandler.getFilesInDirectory(".\\files", m_fileNames);
+				for (const auto& fileName : m_fileNames)
 				{
-					lengthString = std::to_string(fileName.length());
+					lengthString = std::to_string(fileName.first.length());
 					lengthString = std::string(5 - lengthString.length(), '0') + lengthString;
-					repCode += lengthString + fileName;
+					repCode += lengthString + fileName.first;
 				}
 				Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
 				break;
@@ -264,9 +303,9 @@ void Communicator::handleNewClient(SOCKET client_sock)
 				Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
 				break;
 
-			case MC_GET_USERS_REQUEST:
+			case MC_GET_USERS_ON_FILE_REQUEST:
 				// Handle get users request
-				repCode = std::to_string(MC_GET_USERS_RESP);
+				repCode = std::to_string(MC_GET_USERS_ON_FILE_RESP);
 				send = false;
 				// Get the list of users logged into the file
 				for (const auto& user : m_usersOnFile[".\\files\\" + reqDetail.data]) {
@@ -277,9 +316,46 @@ void Communicator::handleNewClient(SOCKET client_sock)
 				Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
 				break;
 
+			case MC_GET_USERS_REQUEST:
+				// Handle get users request
+				repCode = std::to_string(MC_GET_USERS_RESP);
+				send = false;
+
+				for (auto& sock : m_clients)
+				{
+					lengthString = std::to_string(m_clients[sock.first]->getUsername().length());
+					lengthString = std::string(5 - lengthString.length(), '0') + lengthString;
+					repCode += lengthString + m_clients[sock.first]->getUsername();
+
+					// Add file name length and file name to the response
+					lengthString = std::to_string(m_clients[sock.first]->getFileName().length());
+					lengthString = std::string(5 - lengthString.length(), '0') + lengthString;
+					repCode += lengthString + m_clients[sock.first]->getFileName();
+				}
+				Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
+				break;
+			case MC_GET_USERS_PERMISSIONS_REQ_REQUEST:
+				repCode = std::to_string(MC_APPROVE_RESP);
+				Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
+
+				repCode = std::to_string(MC_GET_USERS_PERMISSIONS_REQ_RESP);
+				send = false;
+
+				for (auto& req : m_database->getPermissionRequests(m_clients[client_sock]->getId()))
+				{
+					lengthString = std::to_string(m_database->getUserName("", req.userId).length());
+					lengthString = std::string(5 - lengthString.length(), '0') + lengthString;
+					repCode += lengthString + m_database->getUserName("", req.userId);
+
+					// Add file name length and file name to the response
+					lengthString = std::to_string(m_database->getFileName(req.fileId).length());
+					lengthString = std::string(5 - lengthString.length(), '0') + lengthString;
+					repCode += lengthString + m_database->getFileName(req.fileId);
+				}
+				Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
+				break;
 			case MC_POST_MSG_REQUEST:
 				// Handle post message request
-
 				lengthString = std::to_string(m_clients[client_sock]->getUsername().length());
 				lengthString = std::string(5 - lengthString.length(), '0') + lengthString;
 
@@ -291,10 +367,38 @@ void Communicator::handleNewClient(SOCKET client_sock)
 				notifyAllClients(repCode, client_sock, true);
 				send = false;
 				break;
-
+			case MC_APPROVE_PERMISSION_REQUEST:
+				repCode = std::to_string(MC_APPROVE_PERMISSION_RESP);
+				m_database->deletePermissionRequests(m_database->getUserId(reqDetail.userName), m_database->getFileDetails(reqDetail.fileName).fileId);
+				m_database->addUserPermission(m_database->getUserId(reqDetail.userName), m_database->getFileDetails(reqDetail.fileName).fileId);
+				Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
+				send = false;
+				break;
+			case MC_REJECT_PERMISSION_REQUEST:
+				repCode = std::to_string(MC_REJECT_PERMISSION_RESP);
+				m_database->deletePermissionRequests(m_database->getUserId(reqDetail.userName), m_database->getFileDetails(reqDetail.fileName).fileId);
+				Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
+				send = false;
+				break;
 			case MC_JOIN_FILE_REQUEST:
-				// TODO add request for the last index in the file
-				repCode = std::to_string(MC_APPROVE_RESP); //+ std::to_string(m_database->getIndex(m_clients[client_sock]->getUsername(), reqDetail.data));
+
+				reqDetail.fileId = m_database->getFileDetails(reqDetail.data).fileId;
+				for (const auto& permission : m_database->getUserPermissions(m_clients[client_sock]->getId())) {
+					if (permission.fileId == reqDetail.fileId) {
+						hasPermission = true;
+						break;
+					}
+				}
+
+				if (!hasPermission) {
+					// Send an error response indicating lack of permission
+					repCode = std::to_string(MC_ERROR_RESP) + "You are not allowed not join the file, sent the creator of this file a permission req";
+					Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
+					break;
+				}
+				lengthString = std::to_string((reqDetail.data.length()));
+				lengthString = std::string(5 - lengthString.length(), '0') + lengthString;
+				repCode = std::to_string(MC_APPROVE_RESP) + lengthString + reqDetail.data;
 				Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
 
 				repCode = std::to_string(MC_JOIN_FILE_RESP);
@@ -309,18 +413,21 @@ void Communicator::handleNewClient(SOCKET client_sock)
 				lengthString = std::string(5 - lengthString.length(), '0') + lengthString;
 				repCode += lengthString + m_clients[client_sock]->getUsername();
 
+				lengthString = std::to_string((reqDetail.data.length()));
+				lengthString = std::string(5 - lengthString.length(), '0') + lengthString;
+				repCode += lengthString + reqDetail.data;
+
 				notifyAllClients(repCode, client_sock, true);
+				notifyAllClients(repCode, client_sock, false);
 				send = false;
+				hasPermission = false;
 				break;
 			case MC_LEAVE_FILE_REQUEST:
-				// TODO add change data base for the last index in the file
 				repCode = std::to_string(MC_APPROVE_RESP);
 				Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
 
 				repCode = std::to_string(MC_LEAVE_FILE_RESP);
 				reqDetail.fileName = m_clients[client_sock]->getFileName();
-
-				//m_database->updateIndex(m_clients[client_sock]->getUsername(), reqDetail.fileName, std::stoi(reqDetail.data));
 
 				for (auto it = m_usersOnFile.begin(); it != m_usersOnFile.end(); ++it) {
 					// Iterate over the array of clients for each file
@@ -337,7 +444,13 @@ void Communicator::handleNewClient(SOCKET client_sock)
 				lengthString = std::to_string((m_clients[client_sock]->getUsername().length()));
 				lengthString = std::string(5 - lengthString.length(), '0') + lengthString;
 				repCode += lengthString + m_clients[client_sock]->getUsername();
+
+				lengthString = std::to_string((reqDetail.fileName.length()));
+				lengthString = std::string(5 - lengthString.length(), '0') + lengthString;
+				repCode += lengthString + reqDetail.fileName;
+
 				notifyAllClients(repCode, client_sock, true);
+				notifyAllClients(repCode, client_sock, false);
 				send = false;
 
 				// Check if the user leaving was the last one
@@ -368,11 +481,14 @@ void Communicator::handleNewClient(SOCKET client_sock)
 
 					reqDetail = adjustIndexForSync(fileName, reqDetail);
 					reqDetail.fileName = fileName;
-					updateFileOnServer(fileName, reqDetail);
+
+					//updateFileOnServer(fileName, reqDetail);
+					updateFileOnServerOld(fileName, reqDetail);
 					notifyAllClients(repCode + reqDetail.msg, client_sock, true);
 
 					reqDetail.timestamp = getCurrentTimestamp();
 					m_lastActionMap[fileName].push_back(reqDetail);
+					m_FileUpdate[fileName] = true;
 				}// lock goes out of scope, releasing the lock
 
 			}
@@ -391,8 +507,9 @@ void Communicator::handleNewClient(SOCKET client_sock)
 			}
 			else
 			{
+				handleError(client_sock);
 				// Handle other exceptions
-				std::string initialFileContent = std::to_string(MC_ERR_RESP) + e.what();
+				std::string initialFileContent = std::to_string(MC_ERROR_RESP) + e.what();
 				Helper::sendData(client_sock, BUFFER(initialFileContent.begin(), initialFileContent.end()));
 			}
 		}
@@ -400,6 +517,43 @@ void Communicator::handleNewClient(SOCKET client_sock)
 	}
 
 	closesocket(client_sock);
+}
+
+void Communicator::cloudCommunicationFunction(/* Parameters for communication */) {
+	try
+	{
+		while (true) {
+
+			for (auto& [fileName, updated] : m_FileUpdate) {
+				if (updated) {
+					{
+						std::lock_guard<std::mutex> lock(m_fileMutexes[fileName]);
+						// send to cloud
+						// m_fileData[fileName]
+					}
+					if (m_usersOnFile[fileName].empty()) {
+						m_filesData.erase(fileName);
+						m_FileUpdate.erase(fileName);
+					}
+					else
+					{
+						m_FileUpdate[fileName] = false;  // Reset the change flag
+					}
+				}
+				else {
+					if (m_usersOnFile[fileName].empty()) {
+						m_filesData.erase(fileName);
+						m_FileUpdate.erase(fileName);
+					}
+				}
+			}
+			std::this_thread::sleep_for(std::chrono::minutes(1));
+		}
+	}
+	catch (const std::exception& e)
+	{
+
+	}
 }
 
 Action Communicator::adjustIndexForSync(const std::string& fileName, Action reqDetail)
@@ -491,12 +645,65 @@ Action Communicator::adjustIndexForSync(const std::string& fileName, Action reqD
 
 }
 
+void Communicator::handleError(SOCKET client_sock)
+{
+	try
+	{
+		// Check if the client is associated with a file
+		if (m_clients.find(client_sock) != m_clients.end())
+		{
+			Client* client = m_clients[client_sock];
+
+			// Check if the client is currently working on a file
+			if (!client->getFileName().empty())
+			{
+				// Notify the client about the error
+				std::string response = std::to_string(MC_ERROR_RESP);
+				
+				std::string fileContent = fileOperationHandler.readFromFile(".\\files\\" + client->getFileName());
+				std::string lengthString = std::to_string(fileContent.length());
+				lengthString = std::string(5 - lengthString.length(), '0') + lengthString;
+
+				response += lengthString + fileContent;
+
+				Helper::sendData(client_sock, BUFFER(response.begin(), response.end()));
+
+				// Send the latest version of the file to the client
+				
+
+				/*
+				// If necessary, adjust and commit the client's request
+				reqDetail = adjustIndexForSync(fileName, reqDetail);
+				reqDetail.fileName = fileName;
+				updateFileOnServer(fileName, reqDetail);
+
+				// Notify all clients about the adjusted request
+				std::string repCode = std::to_string(MC_ERR_ADJUSTED_RESP);
+				notifyAllClients(repCode + reqDetail.msg, client_sock, true);
+
+				// Update the last action map
+				reqDetail.timestamp = getCurrentTimestamp();
+				m_lastActionMap[fileName].push_back(reqDetail);
+				*/
+			}
+		}
+	}
+	catch (const std::exception& e)
+	{
+		// Handle any further exceptions if needed
+		// You can log the exception or take appropriate actions
+		// ...
+	}
+}
+
 void Communicator::handleClientDisconnect(SOCKET client_sock)
 {
 	// Check if the client is associated with a file
 	if (m_clients.find(client_sock) != m_clients.end())
 	{
 		Client* disconnectedClient = m_clients[client_sock];
+
+		std::string repCode = std::to_string(MC_DISCONNECT) + disconnectedClient->getUsername();
 
 		// Check if the client is inside a file
 		if (disconnectedClient->getFileName() != "")
@@ -513,12 +720,6 @@ void Communicator::handleClientDisconnect(SOCKET client_sock)
 					}), it->second.end());
 
 				if (!it->second.empty()) {
-					// Notify other clients in the same file about the disconnection
-					std::string lengthString = std::to_string(disconnectedClient->getUsername().length());
-					lengthString = std::string(5 - lengthString.length(), '0') + lengthString;
-					std::string repCode = std::to_string(MC_LEAVE_FILE_RESP) + lengthString + disconnectedClient->getUsername();
-
-					// Notify all clients in the same file
 					notifyAllClients(repCode, client_sock, true);
 				}
 
@@ -530,6 +731,8 @@ void Communicator::handleClientDisconnect(SOCKET client_sock)
 				}
 			}
 		}
+		notifyAllClients(repCode, client_sock, false);
+
 
 		// Clean up resources and remove the client from the map
 		delete disconnectedClient;
@@ -586,7 +789,12 @@ Action Communicator::deconstructReq(const std::string& req) {
 	case MC_GET_MESSAGES_REQUEST:
 		newAction.data = action;
 		break;
+	case MC_GET_USERS_ON_FILE_REQUEST:
+		newAction.data = action;
+		break;
 	case MC_GET_USERS_REQUEST:
+		newAction.data = action;
+	case MC_GET_USERS_PERMISSIONS_REQ_REQUEST:
 		newAction.data = action;
 		break;
 	case MC_POST_MSG_REQUEST:
@@ -595,6 +803,20 @@ Action Communicator::deconstructReq(const std::string& req) {
 		newAction.fileName = action.substr(5, newAction.size);
 		newAction.dataLength = action.substr(5 + newAction.size, 5);
 		newAction.data = action.substr(10 + newAction.size, std::stoi(newAction.dataLength));
+		break;
+	case MC_APPROVE_PERMISSION_REQUEST:
+		newAction.fileNameLength = action.substr(0, 5);
+		newAction.size = std::stoi(newAction.fileNameLength);
+		newAction.fileName = action.substr(5, newAction.size);
+		newAction.userNameLength = std::stoi(action.substr(5 + newAction.size, 5));
+		newAction.userName = action.substr(5 + newAction.size + newAction.userNameLength, newAction.userNameLength);
+		break;
+	case MC_REJECT_PERMISSION_REQUEST:
+		newAction.fileNameLength = action.substr(0, 5);
+		newAction.size = std::stoi(newAction.fileNameLength);
+		newAction.fileName = action.substr(5, newAction.size);
+		newAction.userNameLength = std::stoi(action.substr(5 + newAction.size, 5));
+		newAction.userName = action.substr(5 + newAction.size + newAction.userNameLength, newAction.userNameLength);
 		break;
 	case MC_JOIN_FILE_REQUEST:
 		newAction.dataLength = action.substr(0, 5);
@@ -636,7 +858,7 @@ Action Communicator::deconstructReq(const std::string& req) {
 	return newAction;
 }
 
-void Communicator::updateFileOnServer(const std::string& filePath, const Action& reqDetail)
+void Communicator::updateFileOnServerOld(const std::string& filePath, const Action& reqDetail)
 {
 	std::fstream file(filePath, std::ios::in | std::ios::out);
 	if (!file.is_open()) {
@@ -646,18 +868,18 @@ void Communicator::updateFileOnServer(const std::string& filePath, const Action&
 		switch (reqDetail.code) {
 		case MC_INSERT_REQUEST:
 			// Insert operation
-			operationHandler.insert(file, reqDetail.data, (std::stoi(reqDetail.index) + std::stoi(reqDetail.newLineCount)));
+			operationHandler.insertOld(file, reqDetail.data, (std::stoi(reqDetail.index) + std::stoi(reqDetail.newLineCount)));
 			break;
 
 		case MC_DELETE_REQUEST:
 			// Delete operation
-			operationHandler.deleteContent(file, std::stoi(reqDetail.dataLength), (std::stoi(reqDetail.index) + std::stoi(reqDetail.newLineCount)),
+			operationHandler.deleteContentOld(file, std::stoi(reqDetail.dataLength), (std::stoi(reqDetail.index) + std::stoi(reqDetail.newLineCount)),
 				reqDetail.fileName);
 			break;
 
 		case MC_REPLACE_REQUEST:
 			// Replace operation
-			operationHandler.replace(file, std::stoi(reqDetail.selectionLength), reqDetail.data,
+			operationHandler.replaceOld(file, std::stoi(reqDetail.selectionLength), reqDetail.data,
 				(std::stoi(reqDetail.index) + std::stoi(reqDetail.newLineCount)), reqDetail.fileName);
 			break;
 
@@ -671,21 +893,86 @@ void Communicator::updateFileOnServer(const std::string& filePath, const Action&
 
 void Communicator::updateChatFileOnServer(const std::string& filePath, const Action& reqDetail)
 {
-	std::ofstream file(filePath, std::ios::app);  // Open file in append mode
+	auto it = m_filesData.find(filePath);
+	if (it != m_filesData.end())
+	{
+		switch (reqDetail.code)
+		{
 
-	if (!file.is_open()) {
-		throw std::runtime_error("Failed to open file for writing: " + filePath);
+		case MC_INSERT_REQUEST:
+			// Insert operation
+			operationHandler.insert(it->second, reqDetail.data, (std::stoi(reqDetail.index) + std::stoi(reqDetail.newLineCount)));
+			break;
+
+		case MC_DELETE_REQUEST:
+			// Delete operation
+			operationHandler.deleteContent(it->second, std::stoi(reqDetail.dataLength), (std::stoi(reqDetail.index) + std::stoi(reqDetail.newLineCount)));
+			break;
+
+		case MC_REPLACE_REQUEST:
+			// Replace operation
+			operationHandler.replace(it->second, std::stoi(reqDetail.selectionLength), reqDetail.data,
+				(std::stoi(reqDetail.index) + std::stoi(reqDetail.newLineCount)));
+			break;
+
+		default:
+			throw std::runtime_error("Unknown action code: " + std::to_string(reqDetail.code));
+		}
+	}
+}
+
+void Communicator::updateFileOnServer(const std::string& filePath, const Action& reqDetail)
+{
+	auto it = m_filesData.find(filePath);
+
+	if (it != m_filesData.end()) {
+		int index;
+		int length;
+		switch (reqDetail.code) {
+		case MC_INSERT_REQUEST:
+			// Insert operation
+			if (std::stoi(reqDetail.index) <= it->second.size()) {
+				it->second.insert(std::stoi(reqDetail.index), reqDetail.data);
+			}
+			else {
+				throw std::runtime_error("Insert index out of range");
+			}
+			break;
+
+		case MC_DELETE_REQUEST:
+			// Delete operation
+			if (std::stoi(reqDetail.index) < it->second.size()) {
+				it->second.erase(std::stoi(reqDetail.index), reqDetail.size);
+			}
+			else {
+				throw std::runtime_error("Delete index out of range");
+			}
+			break;
+
+		case MC_REPLACE_REQUEST:
+			// Replace operation
+			index = std::stoi(reqDetail.index);
+			length = std::stoi(reqDetail.selectionLength);
+			if (index < it->second.size() &&
+				index + length <= it->second.size()) {
+				it->second.erase(index, length);
+				it->second.insert(index, reqDetail.data);
+			}
+			else {
+				throw std::runtime_error("Replace index or selection length out of range");
+			}
+			break;
+
+		default:
+			throw std::runtime_error("Unknown action code: " + reqDetail.code);
+		}
 	}
 	else {
-		// Format the message
-		std::string message = reqDetail.dataLength + reqDetail.data + reqDetail.index ;
-
-		// Append the message to the file
-		file << message;
-
-		// Close the file
-		file.close();
+		throw std::runtime_error("File not found: " + filePath);
 	}
+
+
+
 }
 
 void Communicator::notifyAllClients(const std::string& updatedContent, SOCKET client_sock, const bool isOnFile)

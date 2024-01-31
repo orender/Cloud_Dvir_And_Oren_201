@@ -50,14 +50,17 @@ bool FileOperation::deleteFile(const std::string& filePath)
     }
 }
 
-void FileOperation::getFilesInDirectory(const std::string& directoryPath, std::vector<std::string>& files) {
+void FileOperation::getFilesInDirectory(const std::string& directoryPath, std::map<std::string, int>& files) {
     try {
         for (const auto& entry : std::filesystem::directory_iterator(directoryPath)) {
             if (std::filesystem::is_regular_file(entry)) {
                 std::string fileName = entry.path().filename().string();
+                int fileSize = static_cast<int>(std::filesystem::file_size(entry.path()));
 
-                if (std::find(files.begin(), files.end(), fileName) == files.end()) {
-                    files.push_back(fileName);
+                // Check if the file already exists in the map
+                auto it = files.find(fileName);
+                if (it == files.end()) {
+                    files[fileName] = 0;
                 }
             }
         }

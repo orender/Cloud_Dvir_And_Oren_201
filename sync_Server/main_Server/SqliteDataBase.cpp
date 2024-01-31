@@ -25,6 +25,9 @@ int callback_users(void* data, int argc, char** argv, char** azColName)
 		else if (std::string(azColName[i]) == "password") {
 			user.setPass(argv[i]);
 		}
+		else if (std::string(azColName[i]) == "id") {
+			user.setId(std::stoi(argv[i]));
+		}
 	}
 	list_users->push_back(user);
 	return 0;
@@ -44,6 +47,57 @@ int callback_chats(void* data, int argc, char** argv, char** azColName)
 		}
 	}
 	list_chats->push_back(chat);
+	return 0;
+}
+
+int callback_Permissions(void* data, int argc, char** argv, char** azColName)
+{
+	std::list<Permission>* list_permissions = (std::list<Permission>*)data;
+	Permission perm;
+
+	for (int i = 0; i < argc; i++) {
+		if (std::string(azColName[i]) == "fileId") {
+			perm.fileId = std::stoi(argv[i]);
+		}
+	}
+	list_permissions->push_back(perm);
+	return 0;
+}
+
+int callback_PermissionReq(void* data, int argc, char** argv, char** azColName)
+{
+	std::list<PermissionReq>* list_permissionReq = (std::list<PermissionReq>*)data;
+	PermissionReq req;
+
+	for (int i = 0; i < argc; i++) {
+		if (std::string(azColName[i]) == "fileId") {
+			req.fileId = std::stoi(argv[i]);
+		}
+		else if (std::string(azColName[i]) == "userId") {
+				req.userId = std::stoi(argv[i]);
+		}
+	}
+	list_permissionReq->push_back(req);
+	return 0;
+}
+
+int callback_File(void* data, int argc, char** argv, char** azColName)
+{
+	std::list<FileDetail>* list_files = (std::list<FileDetail>*)data;
+	FileDetail file;
+
+	for (int i = 0; i < argc; i++) {
+		if (std::string(azColName[i]) == "fileName") {
+			file.fileName = argv[i];
+		}
+		else if (std::string(azColName[i]) == "creatorId") {
+			file.creatorId = std::stoi(argv[i]);
+		}
+		else if (std::string(azColName[i]) == "fileId") {
+			file.fileId = std::stoi(argv[i]);
+		}
+	}
+	list_files->push_back(file);
 	return 0;
 }
 
@@ -74,6 +128,39 @@ bool SqliteDataBase::send_chats(sqlite3* db, std::string msg, std::list<Chat>* c
 	const char* sqlStatement = msg.c_str();
 	char* errMessage = nullptr;
 	int res = sqlite3_exec(db, sqlStatement, callback_chats, chats, &errMessage);
+	if (res != SQLITE_OK)
+		return false;
+
+	return true;
+}
+
+bool SqliteDataBase::send_Permissions(sqlite3* db, std::string msg, std::list<Permission>* data)
+{
+	const char* sqlStatement = msg.c_str();
+	char* errMessage = nullptr;
+	int res = sqlite3_exec(db, sqlStatement, callback_Permissions, data, &errMessage);
+	if (res != SQLITE_OK)
+		return false;
+
+	return true;
+}
+
+bool SqliteDataBase::send_PermissionReq(sqlite3* db, std::string msg, std::list<PermissionReq>* data)
+{
+	const char* sqlStatement = msg.c_str();
+	char* errMessage = nullptr;
+	int res = sqlite3_exec(db, sqlStatement, callback_PermissionReq , data, &errMessage);
+	if (res != SQLITE_OK)
+		return false;
+
+	return true;
+}
+
+bool SqliteDataBase::send_file(sqlite3* db, std::string msg, std::list<FileDetail>* data)
+{
+	const char* sqlStatement = msg.c_str();
+	char* errMessage = nullptr;
+	int res = sqlite3_exec(db, sqlStatement, callback_File, data, &errMessage);
 	if (res != SQLITE_OK)
 		return false;
 
@@ -117,12 +204,33 @@ bool SqliteDataBase::open()
 			" fileName TEXT UNIQUE NOT NULL,"
 			" data TEXT NOT NULL);";
 		send(_db, msg);
-		msg = "CREATE TABLE 'indexes' ("
-			"userId	INTEGER,"
-			"lastIndex	INTEGER NOT NULL,"
-			"fileName	TEXT NOT NULL,"
-			"FOREIGN KEY(userId) REFERENCES users(id));";
-
+		msg = "CREATE TABLE 'PermissionRequests' ("
+			"id INTEGER PRIMARY KEY AUTOINCREMENT,"
+			"fileId INTEGER,"
+			"creatorId INTEGER,"
+			"userId INTEGER,"
+			"FOREIGN KEY(creatorId) REFERENCES Users(id),"
+			"FOREIGN KEY(fileId) REFERENCES Files(fileId),"
+			"FOREIGN KEY(userId) REFERENCES Users(id)"
+			"PRIMARY KEY(id)"
+			"); ";
+		send(_db, msg);
+		msg = "CREATE TABLE UserPermissions ("
+			"id INTEGER PRIMARY KEY AUTOINCREMENT,"
+			"userId INTEGER,"
+			"fileId INTEGER,"
+			"FOREIGN KEY(userId) REFERENCES Users(id),"
+			"FOREIGN KEY(fileId) REFERENCES Files(fileId),"
+			"UNIQUE(userId, fileId)"
+			"); ";
+		send(_db, msg);
+		msg = "CREATE TABLE Files ("
+			"fileId INTEGER PRIMARY KEY AUTOINCREMENT,"
+			"creatorId INTEGER,"
+			"fileName TEXT,"
+			"FOREIGN KEY(creatorId) REFERENCES users(id)"
+			"); ";
+		send(_db, msg);
 
 	}
 	return true;
@@ -162,7 +270,7 @@ int SqliteDataBase::getUserId(std::string username)
 	return id;
 }
 
-std::string SqliteDataBase::getUserName(std::string username)
+std::string SqliteDataBase::getUserName(std::string username, int id)
 {
 	std::list<Client> users_list = getAllUsers();
 
@@ -170,7 +278,7 @@ std::string SqliteDataBase::getUserName(std::string username)
 	{
 		for (auto user : users_list)
 		{
-			if (user.getUsername() == username || user.getEmail() == username)
+			if (user.getUsername() == username || user.getEmail() == username || user.getId() == id)
 			{
 				return user.getUsername();
 			}
@@ -287,50 +395,83 @@ std::string SqliteDataBase::GetChatData(const std::string& fileName)
 	}
 }
 
-void SqliteDataBase::updateIndex(std::string username, std::string fileName, int index)
-{
-	std::string msg;
-	msg = "UPDATE indexes SET lastIndex = " + std::to_string(index) +
-		" WHERE fileName = \'" + fileName + "\' AND userId = " + std::to_string(getUserId(username)) + ";";
+void SqliteDataBase::addPermissionRequest(int userId, int fileId, int creatorId) {
+	std::string msg = "INSERT INTO PermissionRequests (userId, fileId, creatorId) "
+		"VALUES(" + std::to_string(userId) + ", " + std::to_string(fileId) + ", " + std::to_string(creatorId) + "); ";
+		send(_db, msg);
+}
 
+std::list<PermissionReq> SqliteDataBase::getPermissionRequests(int userId) {
+	std::string msg = "SELECT * FROM PermissionRequests WHERE creatorId = \'" + std::to_string(userId) + "\';";
+
+	std::list<PermissionReq> requestList;
+	send_PermissionReq(_db, msg, &requestList);
+
+	return requestList;
+}
+
+void SqliteDataBase::addUserPermission(int fileId, int userId) {
+	std::string msg = "INSERT INTO UserPermissions (userId, file_name) "
+		"VALUES (" + std::to_string(userId) + "," + std::to_string(fileId) + ");";
 	send(_db, msg);
 }
 
-int SqliteDataBase::getIndex(std::string username, std::string fileName)
-{
-	std::string msg;
+std::list<Permission> SqliteDataBase::getUserPermissions(int userId) {
+	std::string msg = "SELECT * FROM UserPermissions WHERE userId = " + std::to_string(userId) + ";";
 
-	// Assuming 'fileName' is a unique identifier in the 'chats' table
+	std::list<Permission> permissionList;
+	send_Permissions(_db, msg, &permissionList);
 
-	msg = "SELECT lastIndex FROM indexes WHERE fileName = \'" + fileName + "\' AND userId = " + std::to_string(getUserId(username)) + ";";
+	return permissionList;
+}
 
-	std::list<std::string> list_data;
-	send_data(_db, msg, &list_data);
-	int index;
+void SqliteDataBase::addFile(int userId, const std::string& fileName) {
+	std::string msg = "INSERT INTO Files (userId, fileName) "
+		"VALUES (" + std::to_string(userId) + ", \'" + fileName + "\');";
+	send(_db, msg);
+}
 
-	if (list_data.empty())
-	{
-		throw std::exception("Failed to find user last index");
+void SqliteDataBase::deleteFile(const std::string& fileName) {
+	std::string msg = "DELETE FROM Files WHERE fileName = \'" + fileName + "\';";
+	send(_db, msg);
+}
+
+void SqliteDataBase::deletePermissionRequests(int userId, int fileId) {
+	std::string msg = "DELETE FROM PermissionRequests WHERE fileId = " + std::to_string(fileId) + " AND userId = " + std::to_string(userId) + ";";
+	send(_db, msg);
+}
+
+void SqliteDataBase::deletePermission(int fileId) {
+	std::string msg = "DELETE FROM UserPermissions WHERE fileId = " + std::to_string(fileId) + ";";
+	send(_db, msg);
+}
+
+
+FileDetail SqliteDataBase::getFileDetails(const std::string& fileName) {
+	std::string msg = "SELECT * FROM Files WHERE fileName = \'" + fileName + "\';";
+
+	std::list<FileDetail> fileList;
+	send_file(_db, msg, &fileList);
+
+	for (const FileDetail& data : fileList) {
+		if (data.fileName == fileName)
+		{
+			return data;
+		}
 	}
-	for (const auto& per : list_data)
-	{
-		index = atoi(per.c_str());
+}
+
+std::string SqliteDataBase::getFileName(const int fileId)
+{
+	std::string msg = "SELECT * FROM Files WHERE fileId = " + std::to_string(fileId) + ";";
+
+	std::list<FileDetail> fileList;
+	send_file(_db, msg, &fileList);
+
+	for (const FileDetail& data : fileList) {
+		if (data.fileId == fileId)
+		{
+			return data.fileName;
+		}
 	}
-	return index;
-}
-
-void SqliteDataBase::addIndex(std::string username, std::string fileName)
-{
-	std::string msg;
-	msg = "INSERT INTO indexes (userId, fileName, lastIndex) VALUES (" +
-		std::to_string(getUserId(username)) + ", \'" + fileName + "\', " + std::to_string(0) + ");";
-	send(_db, msg);
-}
-
-void SqliteDataBase::deleteIndex(std::string username, std::string fileName)
-{
-	std::string msg;
-	msg = "DELETE FROM indexes WHERE fileName = \'" + fileName +
-		"\' AND userId = " + std::to_string(getUserId(username)) + ";";
-	send(_db, msg);
 }

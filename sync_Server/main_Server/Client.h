@@ -18,9 +18,10 @@ public:
     void setUsername(const std::string newName);
     void setPass(const std::string newName);
     void setEmail(const std::string newName);
+    void setId(const int id);
 
 private:
-    int id;                // ID field
+    int _id;                // ID field
     std::string file_name;
     std::string _userName;
     std::string _pass;

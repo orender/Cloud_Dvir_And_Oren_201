@@ -19,6 +19,9 @@ int main() {
     t1.detach();
     std::string inp;
     
+    std::thread cloudThread(&Communicator::cloudCommunicationFunction, &com);
+    cloudThread.detach();
+
     while (inp != "EXIT")
     {
         std::cout << "Enter EXIT to quit." << std::endl;

@@ -1,6 +1,6 @@
 #include "Operations.h"
 
-void Operations::insert(std::fstream& file, const std::string& data, const int& index)
+void Operations::insertOld(std::fstream& file, const std::string& data, const int& index)
 {
     // Move the file pointer to the insertion index
     file.seekg(index, std::ios::beg);
@@ -17,7 +17,7 @@ void Operations::insert(std::fstream& file, const std::string& data, const int& 
     file << data + originalContentAfterIndex;
 }
 
-void Operations::deleteContent(std::fstream& file, const int& lengthToDelete, const int& index, std::string name)
+void Operations::deleteContentOld(std::fstream& file, const int& lengthToDelete, const int& index, std::string name)
 {
     // Read the entire content of the file into a string
     std::stringstream contentBuffer;
@@ -43,7 +43,7 @@ void Operations::deleteContent(std::fstream& file, const int& lengthToDelete, co
     file.close();
 }
 
-void Operations::replace(std::fstream& file, const int& selectionLength, const std::string& replacementText, const int& index, std::string name)
+void Operations::replaceOld(std::fstream& file, const int& selectionLength, const std::string& replacementText, const int& index, std::string name)
 {
     // Read the entire content of the file into a string
     std::stringstream contentBuffer;
@@ -70,27 +70,27 @@ void Operations::replace(std::fstream& file, const int& selectionLength, const s
     file.close();
 }
 
-/*
-void Operations::replace(std::fstream& file, const int& selectionLength, const std::string& replacementText, const int& index)
+void Operations::insert(std::string& fileData, const std::string& data, const int& index)
 {
-    // Move the file pointer to the replacement index
-    file.seekp(index + selectionLength, std::ios::beg);
-
-    // Copy everything after the selection to copyText
-    std::stringstream copyBuffer;
-    copyBuffer << file.rdbuf();
-    std::string copyText = copyBuffer.str();
-
-    // Move the file pointer back to the replacement index
-    file.seekp(index, std::ios::beg);
-
-    // Remove everything after the index
-    file.write(std::string(selectionLength + copyText.length(), '\0').c_str(), selectionLength + copyText.length());
-
-    // Move the file pointer back to the replacement index
-    file.seekp(index, std::ios::beg);
-
-    // Write the replacementText
-    file << replacementText + copyText;
+    fileData.insert(index, data);
 }
-*/
+
+void Operations::deleteContent(std::string& fileData, const int& lengthToDelete, const int& index)
+{
+
+    if (index + lengthToDelete <= fileData.size())
+    {
+        fileData.erase(index, lengthToDelete);
+    }
+    else
+    {
+        throw std::runtime_error("Invalid delete operation: Index and selection length exceed file size");
+    }
+}
+
+void Operations::replace(std::string& fileData, const int& selectionLength, const std::string& replacementText, const int& index)
+{
+    // Handle replace operation: delete data at the specific index and insert new data
+    deleteContent(fileData, selectionLength, index);
+    insert(fileData, replacementText, index);
+}
