@@ -12,10 +12,20 @@ Communicator::Communicator()
 	if (m_cloudServerSocket == INVALID_SOCKET)
 		throw std::exception("Failed to initialize cloud server socket.");
 
-	/*if (connect(m_cloudSocket, (struct sockaddr*)&cloudServerAddr, sizeof(cloudServerAddr)) == SOCKET_ERROR)
-			throw std::exception("Failed to connect to cloud server.");
+	//initialize socket
+	m_cloudServerSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	SOCKADDR_IN _addr;
+	//set up info for connection
+	_addr.sin_family = AF_INET;
+	_addr.sin_port = htons(CLOUD_PORT);
+	_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+	saveCloud = true;
+	if (connect(m_cloudServerSocket, (struct sockaddr*)&m_cloudServerSocket, sizeof(m_cloudServerSocket)) == SOCKET_ERROR)
+	{
+		std::cout << ("Failed to connect to cloud server.\n");
+		saveCloud = false;
+	}
 
-	*/
 }
 
 // Destructor
@@ -538,14 +548,25 @@ void Communicator::handleNewClient(SOCKET client_sock)
 void Communicator::cloudCommunicationFunction(/* Parameters for communication */) {
 	try
 	{
-		while (true) {
+		while (saveCloud) {
 
 			for (auto& [fileName, updated] : m_FileUpdate) {
 				if (updated) {
 					{
 						std::lock_guard<std::mutex> lock(m_fileMutexes[fileName]);
-						// send to cloud
-						// m_fileData[fileName]
+						char* buffer = new char[1024];
+						size_t bufferSize;
+						
+						writeMessage(1, m_filesData[fileName], buffer, bufferSize);
+						send(m_cloudServerSocket, buffer, bufferSize, 0);
+						
+						char recvbuf[1024];
+						recv(m_cloudServerSocket, recvbuf, 1024, 0);
+						int code = 0;
+						std::string msg = "";
+						readMessage(recvbuf, code, msg);
+
+						std::cout << code << ", " << msg << std::endl;
 					}
 					if (m_usersOnFile[fileName].empty()) {
 						m_filesData.erase(fileName);

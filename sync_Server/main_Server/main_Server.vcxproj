@@ -128,6 +128,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="BinProtocol.cpp" />
     <ClCompile Include="Client.cpp" />
     <ClCompile Include="Communicator.cpp" />
     <ClCompile Include="FileOperation.cpp" />
@@ -140,6 +141,7 @@
     <ClCompile Include="WSAInitializer.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="BinProtocol.h" />
     <ClInclude Include="Client.h" />
     <ClInclude Include="Communicator.h" />
     <ClInclude Include="FileOperation.h" />

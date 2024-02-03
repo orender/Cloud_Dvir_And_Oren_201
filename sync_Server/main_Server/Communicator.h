@@ -16,10 +16,12 @@
 #include "Operations.h"
 #include "FileOperation.h"
 #include "IDatabase.h"
+#include "BinProtocol.h"
 
 #pragma comment(lib, "ws2_32.lib")  // Add this lin
 
 #define PORT 12345
+#define CLOUD_PORT 5555
 #define BUFFER_SIZE 4096
 
 struct Action
