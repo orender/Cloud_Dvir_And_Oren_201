@@ -76,6 +76,9 @@ int callback_PermissionReq(void* data, int argc, char** argv, char** azColName)
 		else if (std::string(azColName[i]) == "userId") {
 				req.userId = std::stoi(argv[i]);
 		}
+		else if (std::string(azColName[i]) == "creatorId") {
+			req.creatorId = std::stoi(argv[i]);
+		}
 	}
 	list_permissionReq->push_back(req);
 	return 0;
@@ -410,8 +413,19 @@ std::list<PermissionReq> SqliteDataBase::getPermissionRequests(int userId) {
 	return requestList;
 }
 
+bool SqliteDataBase::doesPermissionRequestExist(int userId, int fileId, int creatorId) {
+	std::string msg = "SELECT * FROM PermissionRequests WHERE userId = '" + std::to_string(userId) +
+		"' AND fileId = '" + std::to_string(fileId) +
+		"' AND creatorId = '" + std::to_string(creatorId) + "';";
+
+	std::list<PermissionReq> requestList;
+	send_PermissionReq(_db, msg, &requestList);
+
+	return !requestList.empty();
+}
+
 void SqliteDataBase::addUserPermission(int fileId, int userId) {
-	std::string msg = "INSERT INTO UserPermissions (userId, file_name) "
+	std::string msg = "INSERT INTO UserPermissions (userId, fileId) "
 		"VALUES (" + std::to_string(userId) + "," + std::to_string(fileId) + ");";
 	send(_db, msg);
 }

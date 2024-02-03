@@ -26,4 +26,5 @@ private:
     std::string _userName;
     std::string _pass;
     std::string _email;
+
 };

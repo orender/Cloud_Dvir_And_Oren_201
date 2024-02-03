@@ -56,7 +56,7 @@ class Communicator {
 private:
     SOCKET m_serverSocket;
     SOCKET m_cloudServerSocket;
-    std::map<SOCKET, Client*> m_clients; 
+    std::map<SOCKET, Client*> m_clients;
     std::map<std::string, std::vector<Action>> m_lastActionMap; // fileName : <lastAction, index>
     std::map<std::string, std::vector<Client>> m_usersOnFile; // fileName : users
 

@@ -13,7 +13,7 @@ Communicator::Communicator()
 		throw std::exception("Failed to initialize cloud server socket.");
 
 	/*if (connect(m_cloudSocket, (struct sockaddr*)&cloudServerAddr, sizeof(cloudServerAddr)) == SOCKET_ERROR)
-            throw std::exception("Failed to connect to cloud server.");
+			throw std::exception("Failed to connect to cloud server.");
 
 	*/
 }
@@ -63,7 +63,7 @@ void Communicator::handleNewClient(SOCKET client_sock)
 	std::string initialFileContent;
 	FileDetail fileList;
 
-	bool hasPermission;
+	bool hasPermission = false;
 	
 	fileOperationHandler.getFilesInDirectory(".\\files", m_fileNames);
 	for (const auto& fileName : m_fileNames)
@@ -71,6 +71,7 @@ void Communicator::handleNewClient(SOCKET client_sock)
 		fileList = m_database->getFileDetails(fileName.first);
 		m_fileNames[fileName.first] = fileList.fileId;
 	}
+
 	while (run)
 	{
 		try
@@ -216,7 +217,7 @@ void Communicator::handleNewClient(SOCKET client_sock)
 				else
 				{
 					// File doesn't exist, create it and send a success response code
-					repCode = std::to_string(MC_APPROVE_RESP);
+					repCode = std::to_string(MC_APPROVE_REQ_RESP);
 					Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
 					
 					// send to cloud msg
@@ -335,7 +336,7 @@ void Communicator::handleNewClient(SOCKET client_sock)
 				Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
 				break;
 			case MC_GET_USERS_PERMISSIONS_REQ_REQUEST:
-				repCode = std::to_string(MC_APPROVE_RESP);
+				repCode = std::to_string(MC_APPROVE_REQ_RESP);
 				Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
 
 				repCode = std::to_string(MC_GET_USERS_PERMISSIONS_REQ_RESP);
@@ -380,8 +381,23 @@ void Communicator::handleNewClient(SOCKET client_sock)
 				Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
 				send = false;
 				break;
+			case MC_PERMISSION_FILE_REQ_REQUEST:
+				fileList = m_database->getFileDetails(reqDetail.fileName);
+				if (!m_database->doesPermissionRequestExist(m_database->getUserId(reqDetail.userName), fileList.fileId, fileList.creatorId))
+				{
+					repCode = std::to_string(MC_PERMISSION_FILE_REQ_RESP);
+					m_database->addPermissionRequest(m_database->getUserId(reqDetail.userName), fileList.fileId, fileList.creatorId);
+					repCode += reqDetail.fileNameLength + reqDetail.fileName;
+				}
+				else
+				{
+					repCode = std::to_string(MC_ERROR_RESP) + "Request already exist, waiting for the owner of the file to approve";
+				}
+				Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
+				send = false;
+				break;
 			case MC_JOIN_FILE_REQUEST:
-
+				send = false;
 				reqDetail.fileId = m_database->getFileDetails(reqDetail.data).fileId;
 				for (const auto& permission : m_database->getUserPermissions(m_clients[client_sock]->getId())) {
 					if (permission.fileId == reqDetail.fileId) {
@@ -392,13 +408,14 @@ void Communicator::handleNewClient(SOCKET client_sock)
 
 				if (!hasPermission) {
 					// Send an error response indicating lack of permission
-					repCode = std::to_string(MC_ERROR_RESP) + "You are not allowed not join the file, sent the creator of this file a permission req";
+					repCode = std::to_string(MC_ERROR_RESP) + "You are not allowed to join this file" + reqDetail.dataLength 
+						+ reqDetail.data;
 					Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
 					break;
 				}
 				lengthString = std::to_string((reqDetail.data.length()));
 				lengthString = std::string(5 - lengthString.length(), '0') + lengthString;
-				repCode = std::to_string(MC_APPROVE_RESP) + lengthString + reqDetail.data;
+				repCode = std::to_string(MC_APPROVE_JOIN_RESP) + lengthString + reqDetail.data;
 				Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
 
 				repCode = std::to_string(MC_JOIN_FILE_RESP);
@@ -419,11 +436,10 @@ void Communicator::handleNewClient(SOCKET client_sock)
 
 				notifyAllClients(repCode, client_sock, true);
 				notifyAllClients(repCode, client_sock, false);
-				send = false;
 				hasPermission = false;
 				break;
 			case MC_LEAVE_FILE_REQUEST:
-				repCode = std::to_string(MC_APPROVE_RESP);
+				repCode = std::to_string(MC_APPROVE_REQ_RESP);
 				Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
 
 				repCode = std::to_string(MC_LEAVE_FILE_RESP);
@@ -809,15 +825,21 @@ Action Communicator::deconstructReq(const std::string& req) {
 		newAction.size = std::stoi(newAction.fileNameLength);
 		newAction.fileName = action.substr(5, newAction.size);
 		newAction.userNameLength = std::stoi(action.substr(5 + newAction.size, 5));
-		newAction.userName = action.substr(5 + newAction.size + newAction.userNameLength, newAction.userNameLength);
+		newAction.userName = action.substr(10 + newAction.size, newAction.userNameLength);
 		break;
 	case MC_REJECT_PERMISSION_REQUEST:
 		newAction.fileNameLength = action.substr(0, 5);
 		newAction.size = std::stoi(newAction.fileNameLength);
 		newAction.fileName = action.substr(5, newAction.size);
 		newAction.userNameLength = std::stoi(action.substr(5 + newAction.size, 5));
-		newAction.userName = action.substr(5 + newAction.size + newAction.userNameLength, newAction.userNameLength);
+		newAction.userName = action.substr(10 + newAction.size, newAction.userNameLength);
 		break;
+	case MC_PERMISSION_FILE_REQ_REQUEST:
+		newAction.fileNameLength = action.substr(0, 5);
+		newAction.size = std::stoi(newAction.fileNameLength);
+		newAction.fileName = action.substr(5, newAction.size);
+		newAction.userNameLength = std::stoi(action.substr(5 + newAction.size, 5));
+		newAction.userName = action.substr(10 + newAction.size, newAction.userNameLength);
 	case MC_JOIN_FILE_REQUEST:
 		newAction.dataLength = action.substr(0, 5);
 		newAction.data = action.substr(5, std::stoi(newAction.dataLength));

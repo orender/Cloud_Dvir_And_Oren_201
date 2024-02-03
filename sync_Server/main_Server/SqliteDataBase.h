@@ -13,6 +13,7 @@ public:
 	bool open() override;
 	bool close() override;
 	bool doesUserExist(std::string username) override;
+	bool doesPermissionRequestExist(int userId, int fileId, int creatorId) override;
 	bool doesPasswordMatch(std::string username, std::string password) override;
 
 	bool addNewUser(std::string username, std::string password, std::string email) override;

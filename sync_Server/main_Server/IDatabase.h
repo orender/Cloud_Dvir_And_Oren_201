@@ -16,6 +16,7 @@ struct PermissionReq
 {
 	int fileId;
 	int userId;
+	int creatorId;
 };
 
 struct Permission
@@ -37,6 +38,7 @@ public:
 	virtual bool open() = 0;
 	virtual bool close() = 0;
 	virtual bool doesUserExist(std::string username) = 0;
+	virtual bool doesPermissionRequestExist(int userId, int fileId, int creatorId) = 0;
 	virtual bool doesPasswordMatch(std::string username, std::string password) = 0;
 
 	virtual bool addNewUser(std::string username, std::string password, std::string email) = 0;
