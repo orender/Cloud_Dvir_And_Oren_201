@@ -26,6 +26,7 @@ namespace client_side
         MC_GET_USERS_PERMISSIONS_REQ_REQUEST = 116,
         MC_APPROVE_PERMISSION_REQUEST = 117,
         MC_REJECT_PERMISSION_REQUEST = 118,
+        MC_PERMISSION_FILE_REQ_REQUEST = 119,
 
         MC_ERROR_RESP = 200, //responses
         MC_INITIAL_RESP = 201,
@@ -46,12 +47,15 @@ namespace client_side
         MC_GET_USERS_PERMISSIONS_REQ_RESP = 216,
         MC_APPROVE_PERMISSION_RESP = 217,
         MC_REJECT_PERMISSION_RESP = 218,
+        MC_PERMISSION_FILE_REQ_RESP = 219,
 
         MC_DISCONNECT = 300, //user
         MC_LOGIN_REQUEST = 301,
         MC_SIGNUP_REQUEST = 303,
         MC_FORGOT_PASSW_REQUEST = 304,
-        MC_APPROVE_RESP = 302,
+        MC_APPROVE_REQ_RESP = 302,
+        MC_APPROVE_JOIN_RESP = 305,
+        MC_RESEND_REQUEST = 306,
 
         MC_LOGIN_RESP = 401,
         MC_SIGNUP_RESP = 403,
@@ -63,7 +67,7 @@ namespace client_side
         private Socket m_socket;
         public int UserId { get; set; }
         public string UserName { get; set; }
-        public int UserFileIndex { get; set; }
+        public string lastMsgToServer { get; set; }
         public Communicator(string ip, int port)
         {
             m_socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
@@ -83,6 +87,7 @@ namespace client_side
 
         public void SendData(string message)
         {
+            lastMsgToServer = message;
             //LogAction(message);
             byte[] data = Encoding.UTF8.GetBytes(message);
             m_socket.Send(data);

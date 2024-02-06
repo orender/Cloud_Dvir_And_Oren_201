@@ -16,6 +16,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using System.Windows.Threading;
+using static client_side.PermissionRequestsWindow;
 
 namespace client_side
 {
@@ -38,6 +39,19 @@ namespace client_side
             lstFiles.KeyDown += LstFiles_KeyDown;
             txtNewFileName.KeyDown += TxtNewFileName_KeyDown;
 
+            start();
+
+            receiveServerUpdatesThread = new Thread(() => ReceiveServerUpdates())
+            {
+                IsBackground = true
+            };
+            receiveServerUpdatesThread.Start();
+
+            Closing += Files_CloseFile; // Hook up the closing event handler
+        }
+
+        private void start()
+        {
             string code = ((int)MessageCodes.MC_GET_USERS_REQUEST).ToString();
             communicator.SendData($"{code}");
 
@@ -115,20 +129,15 @@ namespace client_side
                     fileList.Add(new FileModel { FileName = data });
                 }
 
-                // Sort the fileList alphabetically by file name
                 fileList.Sort((a, b) => string.Compare(a.FileName, b.FileName, StringComparison.OrdinalIgnoreCase));
 
-                // Set the ListBox's ItemsSource to the sorted list of FileModel objects
-                lstFiles.ItemsSource = fileList;
+                // Use Dispatcher to update UI on the UI thread
+                Dispatcher.Invoke(() =>
+                {
+                    // Set the ListBox's ItemsSource to the sorted list of FileModel objects
+                    lstFiles.ItemsSource = fileList;
+                });
             }
-
-            receiveServerUpdatesThread = new Thread(() => ReceiveServerUpdates())
-            {
-                IsBackground = true
-            };
-            receiveServerUpdatesThread.Start();
-
-            Closing += Files_CloseFile; // Hook up the closing event handler
         }
 
         private void LstFiles_KeyDown(object sender, KeyEventArgs e)
@@ -160,9 +169,6 @@ namespace client_side
                 string FileName = selectedFile.FileName;
                 string code = ((int)MessageCodes.MC_JOIN_FILE_REQUEST).ToString();
                 communicator.SendData($"{code}{FileName.Length:D5}{FileName}{communicator.UserId}");
-                TextEditor TextEditorWindow = new TextEditor(communicator, FileName);
-                TextEditorWindow.Show();
-                Close();
             }
 
         }
@@ -276,6 +282,10 @@ namespace client_side
                             HandleLeaveFileResponse(update);
                             break;
 
+                        case "219": // mc_permission_file_req_resp
+                            HandleSentPermissionRequest(update);
+                            break;
+
                         case "401" or "403":
                             HandleLogin(update);
                             break;
@@ -284,12 +294,15 @@ namespace client_side
                             HandleDisconnect(update);
                             break;
 
-                        case "302": // MC_APPROVE_RESP
+                        case "305": // MC_APPROVE_JOIN_RESP
                             HandleJoinFile(update);
+                            break;
+                        
+                        case "302": // MC_APPROVE_REQ_RESP
                             break;
 
                         default:
-                            throw new InvalidOperationException($"Unknown message code: {code}");
+                            throw new InvalidOperationException($"{code}");
                     }
                 }
                 //receiveServerUpdatesThread.Abort();
@@ -297,7 +310,17 @@ namespace client_side
             catch (Exception ex)
             {
                 MessageBox.Show($"Error receiving server updates: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                string msg = await Task.Run(() => communicator.ReceiveData());
             }
+        }
+
+        private void HandleSentPermissionRequest(string update)
+        {
+            string code = update.Substring(0, 3);
+            int fileNameLen = int.Parse(update.Substring(3, 5));
+            string fileName = update.Substring(8, fileNameLen);
+
+            MessageBox.Show($"Sent request to user for file: {fileName}", "Request Sent", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         private void HandleJoinFile(string update)
@@ -307,12 +330,16 @@ namespace client_side
 
             int fileLength = int.Parse(update.Substring(3, 5));
             string FileName = update.Substring(8, fileLength);
-            TextEditor TextEditorWindow = new TextEditor(communicator, FileName);
-            TextEditorWindow.Show();
-            Close();
+
+            Dispatcher.Invoke(() =>
+            {
+                TextEditor TextEditorWindow = new TextEditor(communicator, FileName);
+                TextEditorWindow.Show();
+                Close();
+            });
         }
 
-        private void HandleAddFile(string update)
+            private void HandleAddFile(string update)
         {
             string msg = update.Substring(3);
 
@@ -366,16 +393,38 @@ namespace client_side
 
         private void HandleError(string update)
         {
-            string msg = update.Substring (3);
-            MessageBox.Show($"Error: {msg}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            string code = update.Substring(0, 3);
+            string msg = update.Substring(3);
 
-            /*Dispatcher.Invoke(() =>
+            if (code == "200" && msg.StartsWith("You are not allowed to join this file"))
             {
-                lblErr.Content = msg;
-            });
-            */
+                int fileNameLen = int.Parse(msg.Substring(37, 5));
+                string fileName = msg.Substring(42, fileNameLen);
+
+                MessageBoxResult result = MessageBox.Show($"Error: You are not allowed to join this file\n\nDo you want to send a permission request to the file creator?",
+                                              "Error", MessageBoxButton.YesNo, MessageBoxImage.Error);
+
+                if (result == MessageBoxResult.Yes)
+                {
+                    SendPermissionRequest(fileName);
+                }
+                else
+                {
+                    Close();
+                }
+            }
+            else
+            {
+                MessageBox.Show($"Error: {msg}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
+        private void SendPermissionRequest(string fileName)
+        {
+            string approvalMessage = $"{(int)MessageCodes.MC_PERMISSION_FILE_REQ_REQUEST}{fileName.Length:D5}{fileName}{communicator.UserName.Length:D5}{communicator.UserName}";
+            communicator.SendData(approvalMessage);
+
+        }
         private bool FileExists(string fileName)
         {
             foreach (var item in lstFiles.Items)
