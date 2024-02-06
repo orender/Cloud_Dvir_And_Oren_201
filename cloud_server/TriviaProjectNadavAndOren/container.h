@@ -8,7 +8,7 @@
 #include <string>
 #define BLOBSIZE 50
 
-enum messageCodes { saveBlobCode = 1, getBlobCode = 2, deleteBlobCode = 3};
+enum messageCodes { saveBlobCode = 1, getBlobCode = 2, deleteBlobCode = 3, getAllFiles = 4, createNewFile = 5};
 
 
 class container
