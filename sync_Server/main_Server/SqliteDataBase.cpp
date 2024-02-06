@@ -424,7 +424,7 @@ bool SqliteDataBase::doesPermissionRequestExist(int userId, int fileId, int crea
 	return !requestList.empty();
 }
 
-void SqliteDataBase::addUserPermission(int fileId, int userId) {
+void SqliteDataBase::addUserPermission(int userId, int fileId) {
 	std::string msg = "INSERT INTO UserPermissions (userId, fileId) "
 		"VALUES (" + std::to_string(userId) + "," + std::to_string(fileId) + ");";
 	send(_db, msg);

@@ -25,7 +25,6 @@ Communicator::Communicator()
 		std::cout << ("Failed to connect to cloud server.\n");
 		saveCloud = false;
 	}
-
 }
 
 // Destructor
@@ -62,7 +61,7 @@ void Communicator::bindAndListen()
 void Communicator::handleNewClient(SOCKET client_sock)
 {
 	bool run = true;
-	bool send = true;
+	bool pass = true;
 	std::string msg;
 	BUFFER buf;
 	BUFFER rep;
@@ -98,7 +97,9 @@ void Communicator::handleNewClient(SOCKET client_sock)
 
 			std::string newRequest(buf.begin(), buf.end());
 			Action emptyAction;
-
+			
+			char* buffer = new char[1024];
+			size_t bufferSize;
 
 			Action reqDetail = deconstructReq(newRequest);
 			switch (reqDetail.code)
@@ -116,19 +117,19 @@ void Communicator::handleNewClient(SOCKET client_sock)
 				break;
 
 			case MC_LOGIN_REQUEST:
-				send = false;
+				pass = false;
 				for (auto it = m_clients.begin(); it != m_clients.end(); ++it)
 				{
 					if (it->second->getUsername() == reqDetail.userName || it->second->getEmail() == reqDetail.email)
 					{
 						throw std::exception("User already logged in");
-						send = true;  // Indicate that the response has been sent
+						pass = true;  // Indicate that the response has been sent
 						break;  // Exit the loop
 					}
 				}
 
 				// If the response has been sent, don't proceed to the second condition
-				if (!send)
+				if (!pass)
 				{
 					if (m_database->doesUserExist(reqDetail.userName) && m_database->doesPasswordMatch(reqDetail.userName, reqDetail.pass))
 					{
@@ -148,11 +149,11 @@ void Communicator::handleNewClient(SOCKET client_sock)
 						throw std::exception("invalid username or password.");
 					}
 				}
-				send = false;
+				pass = false;
 				break;
 
 			case MC_SIGNUP_REQUEST:
-				send = false;
+				pass = false;
 				if (!m_database->doesUserExist(reqDetail.userName) && !m_database->doesUserExist(reqDetail.email))
 				{
 					m_database->addNewUser(reqDetail.userName, reqDetail.pass, reqDetail.email);
@@ -214,7 +215,7 @@ void Communicator::handleNewClient(SOCKET client_sock)
 				// Create the initialFileContent string
 				initialFileContent = repCode + lengthString + fileContent;
 				Helper::sendData(client_sock, BUFFER(initialFileContent.begin(), initialFileContent.end()));
-				send = false;
+				pass = false;
 				break;
 			case MC_CREATE_FILE_REQUEST:
 				// Check if the file with the specified name exists
@@ -222,7 +223,7 @@ void Communicator::handleNewClient(SOCKET client_sock)
 				{
 					// File already exists, send an appropriate response code
 					throw std::exception("file already exists");
-					send = false;
+					pass = false;
 				}
 				else
 				{
@@ -230,8 +231,10 @@ void Communicator::handleNewClient(SOCKET client_sock)
 					repCode = std::to_string(MC_APPROVE_REQ_RESP);
 					Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
 					
-					// send to cloud msg
-					
+					//send to cloud
+					writeMessage(5, reqDetail.data, buffer, bufferSize);
+					send(m_cloudServerSocket, buffer, bufferSize, 0);
+
 					// Create the mutex for the new file
 					m_fileMutexes[".\\files\\" + reqDetail.data + ".txt"];
 					fileOperationHandler.createFile(".\\files\\" + reqDetail.data + ".txt", true);
@@ -248,7 +251,7 @@ void Communicator::handleNewClient(SOCKET client_sock)
 
 					notifyAllClients(repCode, client_sock, false);
 
-					send = false;
+					pass = false;
 
 					emptyAction.code = MC_CREATE_FILE_REQUEST;
 					m_lastActionMap[".\\files\\" + reqDetail.data + ".txt"].push_back(emptyAction);
@@ -280,7 +283,9 @@ void Communicator::handleNewClient(SOCKET client_sock)
 				{
 					repCode = std::to_string(MC_DELETE_FILE_RESP) + reqDetail.data + ".txt";
 
-					// send to cloud msg
+					//send to cloud
+					writeMessage(3, reqDetail.data, buffer, bufferSize);
+					send(m_cloudServerSocket, buffer, bufferSize, 0);
 
 					m_fileNames.erase(reqDetail.data + ".txt");
 					fileOperationHandler.deleteFile(".\\files\\" + reqDetail.data + ".txt");
@@ -291,12 +296,17 @@ void Communicator::handleNewClient(SOCKET client_sock)
 					Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
 					notifyAllClients(repCode, client_sock, false);
 				}
-				send = false;
+				pass = false;
 				break;
 
 			case MC_GET_FILES_REQUEST:
 				repCode = std::to_string(MC_GET_FILES_RESP);
-				send = false;
+				pass = false;
+
+				// send to cloud
+				writeMessage(4, "", buffer, bufferSize);
+				send(m_cloudServerSocket, buffer, bufferSize, 0);
+
 				fileOperationHandler.getFilesInDirectory(".\\files", m_fileNames);
 				for (const auto& fileName : m_fileNames)
 				{
@@ -307,7 +317,7 @@ void Communicator::handleNewClient(SOCKET client_sock)
 				Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
 				break;
 			case MC_GET_MESSAGES_REQUEST:
-				send = false;
+				pass = false;
 				// Handle get messages request
 				repCode = std::to_string(MC_GET_MESSAGES_RESP);
 				repCode += m_database->GetChatData(reqDetail.data);
@@ -317,7 +327,7 @@ void Communicator::handleNewClient(SOCKET client_sock)
 			case MC_GET_USERS_ON_FILE_REQUEST:
 				// Handle get users request
 				repCode = std::to_string(MC_GET_USERS_ON_FILE_RESP);
-				send = false;
+				pass = false;
 				// Get the list of users logged into the file
 				for (const auto& user : m_usersOnFile[".\\files\\" + reqDetail.data]) {
 					lengthString = std::to_string((user.getUsername().length()));
@@ -330,7 +340,7 @@ void Communicator::handleNewClient(SOCKET client_sock)
 			case MC_GET_USERS_REQUEST:
 				// Handle get users request
 				repCode = std::to_string(MC_GET_USERS_RESP);
-				send = false;
+				pass = false;
 
 				for (auto& sock : m_clients)
 				{
@@ -350,7 +360,7 @@ void Communicator::handleNewClient(SOCKET client_sock)
 				Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
 
 				repCode = std::to_string(MC_GET_USERS_PERMISSIONS_REQ_RESP);
-				send = false;
+				pass = false;
 
 				for (auto& req : m_database->getPermissionRequests(m_clients[client_sock]->getId()))
 				{
@@ -376,20 +386,20 @@ void Communicator::handleNewClient(SOCKET client_sock)
 
 				repCode = std::to_string(MC_POST_MSG_RESP) + initialFileContent;
 				notifyAllClients(repCode, client_sock, true);
-				send = false;
+				pass = false;
 				break;
 			case MC_APPROVE_PERMISSION_REQUEST:
 				repCode = std::to_string(MC_APPROVE_PERMISSION_RESP);
 				m_database->deletePermissionRequests(m_database->getUserId(reqDetail.userName), m_database->getFileDetails(reqDetail.fileName).fileId);
 				m_database->addUserPermission(m_database->getUserId(reqDetail.userName), m_database->getFileDetails(reqDetail.fileName).fileId);
 				Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
-				send = false;
+				pass = false;
 				break;
 			case MC_REJECT_PERMISSION_REQUEST:
 				repCode = std::to_string(MC_REJECT_PERMISSION_RESP);
 				m_database->deletePermissionRequests(m_database->getUserId(reqDetail.userName), m_database->getFileDetails(reqDetail.fileName).fileId);
 				Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
-				send = false;
+				pass = false;
 				break;
 			case MC_PERMISSION_FILE_REQ_REQUEST:
 				fileList = m_database->getFileDetails(reqDetail.fileName);
@@ -404,10 +414,10 @@ void Communicator::handleNewClient(SOCKET client_sock)
 					repCode = std::to_string(MC_ERROR_RESP) + "Request already exist, waiting for the owner of the file to approve";
 				}
 				Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
-				send = false;
+				pass = false;
 				break;
 			case MC_JOIN_FILE_REQUEST:
-				send = false;
+				pass = false;
 				reqDetail.fileId = m_database->getFileDetails(reqDetail.data).fileId;
 				for (const auto& permission : m_database->getUserPermissions(m_clients[client_sock]->getId())) {
 					if (permission.fileId == reqDetail.fileId) {
@@ -477,7 +487,7 @@ void Communicator::handleNewClient(SOCKET client_sock)
 
 				notifyAllClients(repCode, client_sock, true);
 				notifyAllClients(repCode, client_sock, false);
-				send = false;
+				pass = false;
 
 				// Check if the user leaving was the last one
 				if (m_usersOnFile[reqDetail.fileName].empty()) {
@@ -491,14 +501,14 @@ void Communicator::handleNewClient(SOCKET client_sock)
 			case MC_DISCONNECT: // Handle disconnect request
 				run = false;
 				handleClientDisconnect(client_sock);
-				send = false;
+				pass = false;
 				continue;
 			default:
 				// Handle the default case or throw an error
 				throw std::runtime_error("Unknown action code: " + reqDetail.msg);
 			}
 
-			if (send)
+			if (pass)
 			{
 				{
 					std::string fileName = m_clients[client_sock]->getFileName();
@@ -518,7 +528,7 @@ void Communicator::handleNewClient(SOCKET client_sock)
 				}// lock goes out of scope, releasing the lock
 
 			}
-			send = true;
+			pass = true;
 
 
 		}
