@@ -80,6 +80,8 @@ std::string createSixDigitString(int first, int second) {
 
 bool dataSplitter::saveNewFile(std::string file_name, std::string file_data)
 {
+    this->deleteFile(file_name);
+
 
     // Insert some data, current table naming is temporary
     std::string sqlcom = "INSERT INTO  files (name, tablename) VALUES('" + file_name + "', '" + file_name + "');";
@@ -236,7 +238,7 @@ bool dataSplitter::deleteFile(std::string file_name)
             const char* container = reinterpret_cast<const char*>(sqlite3_column_text(statementBlobs, 1));
             std::string containers_names(container);
             splitString(containers_names, c1, c2);
-            temp = containers[c1].getBlob(createSixDigitString(id, blobId));
+            temp = containers[c1].deleteBlob(createSixDigitString(id, blobId));
             std::cout << temp << std::endl;
             temp = containers[c2].deleteBlob(createSixDigitString(id, blobId));
             std::cout << temp << std::endl;
