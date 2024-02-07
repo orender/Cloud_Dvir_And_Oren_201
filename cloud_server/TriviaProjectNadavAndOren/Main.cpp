@@ -5,25 +5,18 @@
 #include "DBHelper.hpp"
 
 #define PORT 5555
-
+#define GOODCOMMAND 420
+#define BADCOMMAND 42
 int main() 
 {
 
     WSADATA              wsaData;
     WSAStartup(MAKEWORD(2, 2), &wsaData);
-    /*
+    
     dataSplitter ds = dataSplitter("test.db");
+    
 
-    ds.saveNewFile("beemovie", "I'm giving you a night call to tell you how I feel (We'll go all, all, all night long)\nI want to drive you through the night, down the hills(We'll go all, all, all night long)\nI'm gonna tell you something you don't want to hear(We'll go all, all, all night long)\nI'm gonna show you where it's dark, but have no fear(We'll go all, all, all night long)\nThere's something inside you\nIt's hard to explain\nThey're talking about you, boy\nBut you're still the same\nThere's something inside youIt's hard to explain\nThey're talking about you, boy\nBut you're still the same\nI'm giving you a night call to tell you how I feel (We'll go all, all, all night long)\nI want to drive you through the night, down the hills (We'll go all, all, all night long)\nI'm gonna tell you something you don't want to hear (We'll go all, all, all night long)\nI'm gonna show you where it's dark, but have no fear (We'll go all, all, all night long)\nThere's something inside you\nIt's hard to explain\nThey're talking about you, boy\nBut you're still the same\nThere's something inside you\nIt's hard to explain\nThey're talking about you boy\nBut you're still the same\nThere's something inside you (there's something inside you)\nIt's hard to explain (It's hard to explain)\nThey're talking about you boy (They're talking about you boy)\nBut you're still the same");
-    std::cout << ds.getFileData("beemovie") << std::endl;
-    ds.saveNewFile("fortnite_lore", "The Fortnite character Midas is killed by a shark, turning him into a vengeful ghost, as the agencies GHOST and SHADOW found new locations on the map. Eventually, spaceships began to appear throughout the island, re-opening the rifts in the sky. Elsewhere, in another reality, Marvel Comics' Thor is working with Galactus, eventually realizing Galactus was evil and needed to be destroyed. He brought several Marvel characters through the rift to the Fortnite map to aid in the fight against Galactus.");
-    std::cout << ds.getFileData("fortnite_lore") << std::endl;
-    std::cout << ds.getFiles() << std::endl;
-    ds.deleteFile("beemovie");
-    std::cout << ds.getFiles() << std::endl;
-    */
-
-    SOCKET listner;
+    SOCKET listner = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     SOCKET m_syncServerSocket;
     struct sockaddr_in sa = { 0 };
 
@@ -43,7 +36,12 @@ int main()
     if (m_syncServerSocket == INVALID_SOCKET)
         throw std::exception("Recieved an invalid socket.");
 
-    //dataSplitter ds = dataSplitter("test.db");
+    std::string nameLen = "";
+    std::string name = "";
+    std::string data = "";
+    std::string a = "";
+    char* buffer;
+    size_t bufferSize;
 
     while (true)
     {
@@ -55,43 +53,96 @@ int main()
 
         switch (code)
         {
-        case 1:
+        case (int)saveBlobCode:
+            nameLen = msg.substr(0, 3);
+            name = msg.substr(3, std::stoi(nameLen));
+            data = msg.substr(std::stoi(nameLen)+3);
+
+            std::cout << msg;
+
+            if (ds.saveNewFile(name, data))
+            {
+
+                buffer = new char[1024];
+                bufferSize;
+                a = "file saved successfully";
+                writeMessage(GOODCOMMAND, a, buffer, bufferSize);
+
+                send(m_syncServerSocket, buffer, bufferSize, 0);
+            }
+            else {
+
+                buffer = new char[1024];
+                bufferSize;
+                a = "file was not saved successfully";
+                writeMessage(BADCOMMAND, a, buffer, bufferSize);
+
+                send(m_syncServerSocket, buffer, bufferSize, 0);
+            }
             break;
-        case 2:
+        case (int)getBlobCode:
+
+            buffer = new char[1024];
+            bufferSize;
+            a = ds.getFileData(msg);
+            writeMessage(GOODCOMMAND, a, buffer, bufferSize);
+
+            send(m_syncServerSocket, buffer, bufferSize, 0);
             break;
-        case 3:
+        case (int)deleteBlobCode:
+            if (ds.deleteFile(msg))
+            {
+                buffer = new char[1024];
+                bufferSize;
+                a = "file was deleted successfully";
+                writeMessage(GOODCOMMAND, a, buffer, bufferSize);
+
+                send(m_syncServerSocket, buffer, bufferSize, 0);
+            }
+            else {
+                buffer = new char[1024];
+                bufferSize;
+                a = "file was not deleted successfully";
+                writeMessage(BADCOMMAND, a, buffer, bufferSize);
+
+                send(m_syncServerSocket, buffer, bufferSize, 0);
+            }
             break;
-        case 4:
+        case (int)getAllFiles:
+            buffer = new char[1024];
+            bufferSize;
+            a = ds.getFiles();
+            writeMessage(BADCOMMAND, a, buffer, bufferSize);
+
+            send(m_syncServerSocket, buffer, bufferSize, 0);
+            break;
+        case (int)createNewFile:
+            if (ds.saveNewFile(msg, ""))
+            {
+
+                buffer = new char[1024];
+                bufferSize;
+                a = "file created successfully";
+                writeMessage(GOODCOMMAND, a, buffer, bufferSize);
+
+                send(m_syncServerSocket, buffer, bufferSize, 0);
+            }
+            else {
+
+                buffer = new char[1024];
+                bufferSize;
+                a = "file was not created successfully";
+                writeMessage(BADCOMMAND, a, buffer, bufferSize);
+
+                send(m_syncServerSocket, buffer, bufferSize, 0);
+            }
             break;
         default:
             break;
         }
-        std::cout << msg;
-
-        char* buffer = new char[1024];
-        size_t bufferSize;
-        std::string a = "defualt";
-        writeMessage(saveBlobCode, a, buffer, bufferSize);
-
-        send(m_syncServerSocket, buffer, bufferSize, 0);
 
     }
     WSACleanup();
-    /*WSADATA              wsaData;
-    WSAStartup(MAKEWORD(2, 2), &wsaData);
-
-    unsigned int         PortContainer1 = 12345;
-    unsigned int         PortContainer2 = 12350;
-    unsigned int         PortContainer3 = 12355;
-
-
-    container c1 = container("127.0.0.1", PortContainer1);
-    std::cout << c1.start();
-    c1.save("ok", "000001");
-    c1.getBlob("000001");
-    c1.deleteBlob(1);
-
-    WSACleanup();*/
 
     return 0;
 }
