@@ -20,7 +20,7 @@ Communicator::Communicator()
 	_addr.sin_port = htons(CLOUD_PORT);
 	_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
 	saveCloud = true;
-	if (connect(m_cloudServerSocket, (struct sockaddr*)&m_cloudServerSocket, sizeof(m_cloudServerSocket)) == SOCKET_ERROR)
+	if (connect(m_cloudServerSocket, (SOCKADDR*)&_addr, sizeof(_addr)) == SOCKET_ERROR)
 	{
 		std::cout << ("Failed to connect to cloud server.\n");
 		saveCloud = false;
