@@ -188,11 +188,22 @@ namespace client_side
             FileModel selectedFile = lstFiles.SelectedItem as FileModel;
             if (selectedFile != null)
             {
+                // Copy the selectedFile to avoid modifying the original list
+                FileModel fileToRemove = new FileModel
+                {
+                    FileName = selectedFile.FileName,
+                    // Copy other properties as needed
+                };
+
                 // remove the .txt at the end
-                int newLength = selectedFile.FileName.Length - 4;
-                string stringWithoutLast4Chars = selectedFile.FileName.Substring(0, newLength);
+                int newLength = fileToRemove.FileName.Length - 4;
+                string stringWithoutLast4Chars = fileToRemove.FileName.Substring(0, newLength);
+
                 string code = ((int)MessageCodes.MC_DELETE_FILE_REQUEST).ToString();
                 communicator.SendData($"{code}{stringWithoutLast4Chars.Length:D5}{stringWithoutLast4Chars}");
+
+                // Optionally, you can keep the original list unchanged, or modify it if needed
+                // lstFiles.Items.Remove(selectedFile);
             }
         }
 
@@ -339,7 +350,7 @@ namespace client_side
             });
         }
 
-            private void HandleAddFile(string update)
+        private void HandleAddFile(string update)
         {
             string msg = update.Substring(3);
 

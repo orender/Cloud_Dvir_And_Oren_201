@@ -102,8 +102,13 @@ namespace client_side
 
                 if (rep == ((int)MessageCodes.MC_LOGIN_RESP).ToString())
                 {
-                    communicator.UserName = name;
-                    communicator.UserId = int.Parse(update.Substring(3));
+                    string lengthString = update.Substring(3 , 5);
+                    int Namelength = int.Parse(lengthString);
+                    string userName = update.Substring(8, Namelength);
+
+                    string Id = update.Substring(8 + Namelength);
+                    communicator.UserName = userName;
+                    communicator.UserId = int.Parse(Id);
                     disconnect = false;
                     Files filesWindow = new Files(communicator);
                     filesWindow.Show();
