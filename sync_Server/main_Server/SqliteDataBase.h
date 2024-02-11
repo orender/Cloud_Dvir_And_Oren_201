@@ -15,6 +15,7 @@ public:
 	bool doesUserExist(std::string username) override;
 	bool doesPermissionRequestExist(int userId, int fileId, int creatorId) override;
 	bool doesPasswordMatch(std::string username, std::string password) override;
+	bool hasPermission(int userId, int fileId) override;
 
 	bool addNewUser(std::string username, std::string password, std::string email) override;
 	int getUserId(std::string username) override;
@@ -36,6 +37,7 @@ public:
 	void deleteFile(const std::string& fileName) override;
 	void deletePermissionRequests(int userId, int fileId) override;
 	void deletePermission(int fileId) override;
+	void deleteAllPermissionReq(int fileId) override;
 
 private:
 	sqlite3* _db;

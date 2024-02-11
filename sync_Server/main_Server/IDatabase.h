@@ -40,6 +40,7 @@ public:
 	virtual bool doesUserExist(std::string username) = 0;
 	virtual bool doesPermissionRequestExist(int userId, int fileId, int creatorId) = 0;
 	virtual bool doesPasswordMatch(std::string username, std::string password) = 0;
+	virtual bool hasPermission(int userId, int fileId) = 0;
 
 	virtual bool addNewUser(std::string username, std::string password, std::string email) = 0;
 	virtual int getUserId(std::string username) = 0;
@@ -61,4 +62,5 @@ public:
 	virtual void deleteFile(const std::string& fileName) = 0;
 	virtual void deletePermissionRequests(int userId, int fileId) = 0;
 	virtual void deletePermission(int fileId) = 0;
+	virtual void deleteAllPermissionReq(int fileId) = 0;
 };

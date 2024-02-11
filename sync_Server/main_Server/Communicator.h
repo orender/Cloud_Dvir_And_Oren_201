@@ -99,7 +99,7 @@ public:
     Action adjustIndexForSync(const std::string& fileName, Action reqDetail);
 
     void handleClientDisconnect(SOCKET client_sock);
-    void handleError(SOCKET client_sock);
+    void handleError(SOCKET client_sock, std::exception a);
 
     long long getCurrentTimestamp();
 

@@ -439,8 +439,21 @@ std::list<Permission> SqliteDataBase::getUserPermissions(int userId) {
 	return permissionList;
 }
 
+bool SqliteDataBase::hasPermission(int userId, int fileId) {
+	std::string msg = "SELECT * from UserPermissions WHERE userId = " + std::to_string(userId) +
+		" AND fileId = " + std::to_string(fileId) + ";";
+
+	std::list<Permission> permissionList;
+	send_Permissions(_db, msg, &permissionList);
+	if (!permissionList.empty())
+	{
+		return true;
+	}
+	return false;
+}
+
 void SqliteDataBase::addFile(int userId, const std::string& fileName) {
-	std::string msg = "INSERT INTO Files (userId, fileName) "
+	std::string msg = "INSERT INTO Files (creatorId, fileName) "
 		"VALUES (" + std::to_string(userId) + ", \'" + fileName + "\');";
 	send(_db, msg);
 }
@@ -455,16 +468,22 @@ void SqliteDataBase::deletePermissionRequests(int userId, int fileId) {
 	send(_db, msg);
 }
 
+void SqliteDataBase::deleteAllPermissionReq(int fileId) {
+	std::string msg = "DELETE FROM PermissionRequests WHERE fileId = " + std::to_string(fileId) + ";";
+	send(_db, msg);
+}
+
 void SqliteDataBase::deletePermission(int fileId) {
 	std::string msg = "DELETE FROM UserPermissions WHERE fileId = " + std::to_string(fileId) + ";";
 	send(_db, msg);
 }
 
-
 FileDetail SqliteDataBase::getFileDetails(const std::string& fileName) {
 	std::string msg = "SELECT * FROM Files WHERE fileName = \'" + fileName + "\';";
 
 	std::list<FileDetail> fileList;
+	FileDetail emptyFile;
+	emptyFile.fileName = "";
 	send_file(_db, msg, &fileList);
 
 	for (const FileDetail& data : fileList) {
@@ -473,6 +492,7 @@ FileDetail SqliteDataBase::getFileDetails(const std::string& fileName) {
 			return data;
 		}
 	}
+	return emptyFile;
 }
 
 std::string SqliteDataBase::getFileName(const int fileId)

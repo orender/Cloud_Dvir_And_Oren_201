@@ -27,7 +27,7 @@ void FileOperation::createFile(const std::string& fileName, bool fileType)
     {
         if (fileType)
         {
-            file << "Initial content of the file.";
+            //file << "Initial content of the file.";
 
         }
         file.close();
