@@ -94,7 +94,7 @@ namespace client_side
 
                 string code = ((int)MessageCodes.MC_LOGIN_REQUEST).ToString();
                 string name = txtUsername.Text;
-                string pass = pwdPassword.Password;
+                string pass = communicator.HashPassword(pwdPassword.Password);
                 communicator.SendData($"{code}{name.Length:D5}{name}{pass.Length:D5}{pass}");
 
                 string update = communicator.ReceiveData();

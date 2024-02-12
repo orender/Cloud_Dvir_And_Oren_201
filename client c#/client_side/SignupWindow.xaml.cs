@@ -76,7 +76,7 @@ namespace client_side
                 }
                 string code = ((int)MessageCodes.MC_SIGNUP_REQUEST).ToString();
                 string name = txtUsername.Text;
-                string pass = pwdPassword.Password;
+                string pass = communicator.HashPassword(pwdPassword.Password);
                 string email = txtEmail.Text;
 
                 if (!IsValidEmail(email))
