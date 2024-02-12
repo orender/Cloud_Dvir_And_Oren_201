@@ -16,8 +16,8 @@ void writeMessage(int code, const std::string& message, char*& buffer, size_t& b
     *reinterpret_cast<int*>(buffer) = htonl(code);
     *reinterpret_cast<uint16_t*>(buffer + sizeof(int)) = length;
 
-    // Write payload
-    std::memcpy(buffer + sizeof(int) + sizeof(uint16_t), message.c_str(), length);
+    // Write payload and null-terminate
+    std::strcpy(buffer + sizeof(int) + sizeof(uint16_t), message.c_str());
 }
 
 bool readMessage(const char* buffer, int& code, std::string& message) {
@@ -30,6 +30,8 @@ bool readMessage(const char* buffer, int& code, std::string& message) {
 
     // Read payload
     message.assign(buffer, length);
+
+    message.push_back('\0');
 
     return true;
 }

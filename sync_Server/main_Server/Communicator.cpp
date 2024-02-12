@@ -783,6 +783,11 @@ void Communicator::handleError(SOCKET client_sock, std::exception a)
 				Helper::sendData(client_sock, BUFFER(initialFileContent.begin(), initialFileContent.end()));
 			}
 		}
+		else
+		{
+			std::string initialFileContent = std::to_string(MC_ERROR_RESP) + a.what();
+			Helper::sendData(client_sock, BUFFER(initialFileContent.begin(), initialFileContent.end()));
+		}
 	}
 	catch (const std::exception& e)
 	{
