@@ -276,13 +276,16 @@ std::string dataSplitter::getFiles()
     sqlite3_stmt* statement;
     std::string table_name = "";
     int id = -1;
-
+    std::string lengthString;
     if (sqlite3_prepare_v2(db, selectQuery, -1, &statement, 0) == SQLITE_OK) {
         while (sqlite3_step(statement) == SQLITE_ROW) {
             id = sqlite3_column_int(statement, 0);
             const char* tableName = reinterpret_cast<const char*>(sqlite3_column_text(statement, 1));
             std::string ret(tableName);
-            files += ret + "\n";
+
+            lengthString = std::to_string(ret.length());
+            lengthString = std::string(5 - lengthString.length(), '0') + lengthString;
+            files += lengthString + ret;
         }
         sqlite3_finalize(statement);
     }
