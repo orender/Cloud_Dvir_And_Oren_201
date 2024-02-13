@@ -92,7 +92,7 @@ bool dataSplitter::saveNewFile(std::string file_name, std::string file_data)
     int lastInsertedId = sqlite3_last_insert_rowid(db);
     int table_id = lastInsertedId;
 
-    sqlcom = "CREATE TABLE IF NOT EXISTS " + file_name + " (id INTEGER PRIMARY KEY, container TEXT, bloborder INTEGER);";
+    sqlcom = "CREATE TABLE IF NOT EXISTS '" + file_name + "' (id INTEGER PRIMARY KEY, container TEXT, bloborder INTEGER);";
     // Create a table
     if (sqlite3_exec(db, sqlcom.c_str(), 0, 0, 0) != SQLITE_OK) {
         std::cerr << "Table creation failed: " << sqlite3_errmsg(db) << std::endl;
@@ -122,7 +122,7 @@ bool dataSplitter::saveNewFile(std::string file_name, std::string file_data)
         container2 = iter->first;
 
         // Insert some data
-        sqlcom = "INSERT INTO " + file_name + " (container, bloborder) VALUES('" + container1 + "b" + container2 + "', " + std::to_string(i + 1) + ");";
+        sqlcom = "INSERT INTO '" + file_name + "' (container, bloborder) VALUES('" + container1 + "b" + container2 + "', " + std::to_string(i + 1) + ");";
         if (sqlite3_exec(db, sqlcom.c_str(), 0, 0, 0) != SQLITE_OK) {
             std::cerr << "Table creation failed: " << sqlite3_errmsg(db) << std::endl;
             return false;
@@ -227,7 +227,7 @@ bool dataSplitter::deleteFile(std::string file_name)
         std::cerr << "Query execution failed\n";
     }
     std::string temp = "";
-    scom = "SELECT * FROM " + table_name + ";";
+    scom = "SELECT * FROM '" + table_name + "';";
     const char* selectQueryBlobs = scom.c_str();
     sqlite3_stmt* statementBlobs;
     int blobId = -1;
