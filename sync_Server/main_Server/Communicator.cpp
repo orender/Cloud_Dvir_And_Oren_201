@@ -565,7 +565,7 @@ void Communicator::handleNewClient(SOCKET client_sock)
 					reqDetail = adjustIndexForSync(fileName, reqDetail);
 					reqDetail.fileName = fileName;
 
-					//updateFileOnServer(fileName, reqDetail);
+					updateFileOnServer(fileName, reqDetail);
 					updateFileOnServerOld(fileName, reqDetail);
 					notifyAllClients(repCode + reqDetail.msg, client_sock, true);
 
@@ -610,8 +610,11 @@ void Communicator::cloudCommunicationFunction(/* Parameters for communication */
 						std::lock_guard<std::mutex> lock(m_fileMutexes[fileName]);
 						char* buffer = new char[1024];
 						size_t bufferSize;
+						std::string lengthString = std::to_string((fileName.length() - 8));
+						lengthString = std::string(3 - lengthString.length(), '0') + lengthString;
+						std::string repCode = lengthString + fileName.substr(8);
 						
-						writeMessage(1, m_filesData[fileName], buffer, bufferSize);
+						writeMessage(1, repCode + m_filesData[fileName], buffer, bufferSize);
 						send(m_cloudServerSocket, buffer, bufferSize, 0);
 						
 						char recvbuf[1024];
