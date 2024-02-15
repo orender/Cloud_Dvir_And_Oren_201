@@ -73,118 +73,125 @@ int main()
     size_t bufferSize = MAX_MESSAGE_LENGTH;
     ProtocolMessage originalMessage;
     ProtocolMessage receivedMessage;
-
-    while (true)
+    try
     {
-        char recvbuf[1024];
-        recv(m_syncServerSocket, recvbuf, 1024, 0);
-        int code = 0;
-        std::string msg = "";
-        deserializeProtocolMessage(recvbuf, receivedMessage);
-        code = receivedMessage.code;
-        msg = receivedMessage.message;
-
-        std::cout << code << "|" << msg << std::endl;
-
-        switch (code)
+        while (true)
         {
-        case (int)saveBlobCode:
-            nameLen = msg.substr(0, 3);
-            name = msg.substr(3, std::stoi(nameLen));
-            data = msg.substr(std::stoi(nameLen)+3);
+            char recvbuf[1024];
+            recv(m_syncServerSocket, recvbuf, 1024, 0);
+            int code = 0;
+            std::string msg = "";
+            deserializeProtocolMessage(recvbuf, receivedMessage);
+            code = receivedMessage.code;
+            msg = receivedMessage.message;
 
-            std::cout << "file name: " << name << ", file data:\n" << msg << std::endl;
+            std::cout << code << "|" << msg << std::endl;
 
-            if (ds.saveNewFile(name, data))
+            switch (code)
             {
+            case (int)saveBlobCode:
+                nameLen = msg.substr(0, 3);
+                name = msg.substr(3, std::stoi(nameLen));
+                data = msg.substr(std::stoi(nameLen) + 3);
+
+                std::cout << "file name: " << name << ", file data:\n" << msg << std::endl;
+
+                if (ds.saveNewFile(name, data))
+                {
+
+                    buffer = new char[1024];
+                    a = "file saved successfully";
+                    originalMessage.code = GOODCOMMAND;
+                    strcpy(originalMessage.message, a.c_str());
+                    serializeProtocolMessage(originalMessage, buffer);
+
+                    send(m_syncServerSocket, buffer, bufferSize, 0);
+                }
+                else {
+
+                    buffer = new char[1024];
+                    a = "file was not saved successfully";
+                    originalMessage.code = BADCOMMAND;
+                    strcpy(originalMessage.message, a.c_str());
+                    serializeProtocolMessage(originalMessage, buffer);
+
+                    send(m_syncServerSocket, buffer, bufferSize, 0);
+                }
+                break;
+            case (int)getBlobCode:
 
                 buffer = new char[1024];
-                a = "file saved successfully";
+                a = ds.getFileData(msg);
                 originalMessage.code = GOODCOMMAND;
                 strcpy(originalMessage.message, a.c_str());
                 serializeProtocolMessage(originalMessage, buffer);
 
                 send(m_syncServerSocket, buffer, bufferSize, 0);
-            }
-            else {
+                break;
+            case (int)deleteBlobCode:
+                if (ds.deleteFile(msg))
+                {
+                    buffer = new char[1024];
+                    a = "file was deleted successfully";
+                    originalMessage.code = GOODCOMMAND;
+                    strcpy(originalMessage.message, a.c_str());
+                    serializeProtocolMessage(originalMessage, buffer);
 
+                    send(m_syncServerSocket, buffer, bufferSize, 0);
+                }
+                else {
+                    buffer = new char[1024];
+                    a = "file was not deleted successfully";
+                    originalMessage.code = BADCOMMAND;
+                    strcpy(originalMessage.message, a.c_str());
+                    serializeProtocolMessage(originalMessage, buffer);
+
+                    send(m_syncServerSocket, buffer, bufferSize, 0);
+                }
+                break;
+            case (int)getAllFiles:
                 buffer = new char[1024];
-                a = "file was not saved successfully";
-                originalMessage.code = BADCOMMAND;
-                strcpy(originalMessage.message, a.c_str());
-                serializeProtocolMessage(originalMessage, buffer);
-
-                send(m_syncServerSocket, buffer, bufferSize, 0);
-            }
-            break;
-        case (int)getBlobCode:
-
-            buffer = new char[1024];
-            a = ds.getFileData(msg);
-            originalMessage.code = GOODCOMMAND;
-            strcpy(originalMessage.message, a.c_str());
-            serializeProtocolMessage(originalMessage, buffer);
-
-            send(m_syncServerSocket, buffer, bufferSize, 0);
-            break;
-        case (int)deleteBlobCode:
-            if (ds.deleteFile(msg))
-            {
-                buffer = new char[1024];
-                a = "file was deleted successfully";
+                a = ds.getFiles();
                 originalMessage.code = GOODCOMMAND;
                 strcpy(originalMessage.message, a.c_str());
                 serializeProtocolMessage(originalMessage, buffer);
 
                 send(m_syncServerSocket, buffer, bufferSize, 0);
+                break;
+            case (int)createNewFile:
+                if (ds.saveNewFile(msg, ""))
+                {
+
+                    buffer = new char[1024];
+                    a = "file created successfully";
+                    originalMessage.code = GOODCOMMAND;
+                    strcpy(originalMessage.message, a.c_str());
+                    serializeProtocolMessage(originalMessage, buffer);
+
+                    send(m_syncServerSocket, buffer, bufferSize, 0);
+                }
+                else {
+
+                    buffer = new char[1024];
+                    a = "file was not created successfully";
+                    originalMessage.code = BADCOMMAND;
+                    strcpy(originalMessage.message, a.c_str());
+                    serializeProtocolMessage(originalMessage, buffer);
+
+                    send(m_syncServerSocket, buffer, bufferSize, 0);
+                }
+                break;
+            default:
+                break;
             }
-            else {
-                buffer = new char[1024];
-                a = "file was not deleted successfully";
-                originalMessage.code = BADCOMMAND;
-                strcpy(originalMessage.message, a.c_str());
-                serializeProtocolMessage(originalMessage, buffer);
 
-                send(m_syncServerSocket, buffer, bufferSize, 0);
-            }
-            break;
-        case (int)getAllFiles:
-            buffer = new char[1024];
-            a = ds.getFiles();
-            originalMessage.code = GOODCOMMAND;
-            strcpy(originalMessage.message, a.c_str());
-            serializeProtocolMessage(originalMessage, buffer);
-
-            send(m_syncServerSocket, buffer, bufferSize, 0);
-            break;
-        case (int)createNewFile:
-            if (ds.saveNewFile(msg, ""))
-            {
-
-                buffer = new char[1024];
-                a = "file created successfully";
-                originalMessage.code = GOODCOMMAND;
-                strcpy(originalMessage.message, a.c_str());
-                serializeProtocolMessage(originalMessage, buffer);
-
-                send(m_syncServerSocket, buffer, bufferSize, 0);
-            }
-            else {
-
-                buffer = new char[1024];
-                a = "file was not created successfully";
-                originalMessage.code = BADCOMMAND;
-                strcpy(originalMessage.message, a.c_str());
-                serializeProtocolMessage(originalMessage, buffer);
-
-                send(m_syncServerSocket, buffer, bufferSize, 0);
-            }
-            break;
-        default:
-            break;
         }
-
     }
+    catch (const std::exception& e)
+    {
+        //delete &ds;
+    }
+    
     WSACleanup();
 
     return 0;
