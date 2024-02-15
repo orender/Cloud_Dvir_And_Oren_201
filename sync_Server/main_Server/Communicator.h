@@ -70,9 +70,11 @@ private:
 
     Operations operationHandler;
     FileOperation fileOperationHandler;
+    FileOperation fileOperationHandler;
     IDatabase* m_database;
 
     bool saveCloud;
+    bool Cloud;
 public:
     // Constructor
     Communicator();
@@ -81,26 +83,29 @@ public:
     ~Communicator();
 
     void setDB(IDatabase* db);
-
+    void startHandleRequests();
     void bindAndListen();
-
     void handleNewClient(SOCKET client_sock);
+
+    void cloudCommunicationFunction(/* Parameters for communication */);
 
     void updateFileOnServerOld(const std::string& filePath, const Action& reqDetail);
     void updateFileOnServer(const std::string& filePath, const Action& reqDetail);
-    void updateChatFileOnServer(const std::string& filePath, const Action& reqDetail);
-    
+
+    void handleClientDisconnect(SOCKET client_sock);
+    void handleError(SOCKET client_sock, std::exception a);
+    long long getCurrentTimestamp();
+
     void notifyAllClients(const std::string& updatedContent, SOCKET client_sock, const bool isOnFile);
     
-    void startHandleRequests();
-    void cloudCommunicationFunction(/* Parameters for communication */);
 
     Action deconstructReq(const std::string& req);
     Action adjustIndexForSync(const std::string& fileName, Action reqDetail);
 
-    void handleClientDisconnect(SOCKET client_sock);
-    void handleError(SOCKET client_sock, std::exception a);
-
-    long long getCurrentTimestamp();
+    void login(std::string msg, SOCKET client_sock);
+    void signUp(std::string msg, SOCKET client_sock);
+    void createFile(std::string msg, SOCKET client_sock);
+    void deleteFile(std::string msg, SOCKET client_sock);
+    void getFiles(std::string msg, SOCKET client_sock);
 
 };

@@ -69,3 +69,24 @@ void FileOperation::getFilesInDirectory(const std::string& directoryPath, std::m
         std::cerr << "Error reading directory: " << e.what() << std::endl;
     }
 }
+
+void FileOperation::addFiles(const std::string& msg, std::map<std::string, int>& files) {
+    try {
+        int currentIndex = 0;
+        while (currentIndex < msg.length())
+        {
+            int fileLength = std::stoi(msg.substr(currentIndex, 5));
+            currentIndex += 5;
+
+            std::string fileName = msg.substr(currentIndex, fileLength);
+            currentIndex += fileLength;
+            auto it = files.find(fileName);
+            if (it == files.end()) {
+                files[fileName] = 0;
+            }
+        }
+    }
+    catch (const std::exception& e) {
+        std::cerr << "Error reading directory: " << e.what() << std::endl;
+    }
+}
