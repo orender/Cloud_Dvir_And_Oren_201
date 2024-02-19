@@ -70,10 +70,9 @@ private:
 
     Operations operationHandler;
     FileOperation fileOperationHandler;
-    FileOperation fileOperationHandler;
     IDatabase* m_database;
 
-    bool saveCloud;
+    bool CloudConnected;
     bool Cloud;
 public:
     // Constructor
@@ -107,5 +106,8 @@ public:
     void createFile(std::string msg, SOCKET client_sock);
     void deleteFile(std::string msg, SOCKET client_sock);
     void getFiles(std::string msg, SOCKET client_sock);
+    void getInitialContent(std::string msg, SOCKET client_sock);
+    void joinFile(std::string msg, SOCKET client_sock);
+    void leaveFile(std::string msg, SOCKET client_sock);
 
 };

@@ -23,11 +23,11 @@ Communicator::Communicator()
 	_addr.sin_family = AF_INET;
 	_addr.sin_port = htons(CLOUD_PORT);
 	_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-	saveCloud = true;
+	CloudConnected = true;
 	if (connect(m_cloudServerSocket, (SOCKADDR*)&_addr, sizeof(_addr)) == SOCKET_ERROR)
 	{
 		std::cout << ("Failed to connect to cloud server.\n");
-		saveCloud = false;
+		CloudConnected = false;
 	}
 }
 
@@ -134,7 +134,7 @@ void Communicator::createFile(std::string msg, SOCKET client_sock)
 	char recvbuf[1024];
 	size_t bufferSize;
 	int code = 0;
-	std::string msg;
+	std::string msgFromCloud;
 
 	Action reqDetail = deconstructReq(msg);
 
@@ -153,22 +153,22 @@ void Communicator::createFile(std::string msg, SOCKET client_sock)
 
 		//TODO check that deleted succefully
 		code = CLOUDGOODCOMMAND;
-		if (saveCloud)
+		if (CloudConnected)
 		{
 			writeMessage(5, reqDetail.data + ".txt", buffer, bufferSize);
 			send(m_cloudServerSocket, buffer, bufferSize, 0);
 
 			recv(m_cloudServerSocket, recvbuf, 1024, 0);
 			code = 0;
-			msg = "";
-			readMessage(recvbuf, code, msg);
+			msgFromCloud = "";
+			readMessage(recvbuf, code, msgFromCloud);
 		}
 		else
 		{
 			fileOperationHandler.createFile(".\\files\\" + reqDetail.data + ".txt", true); // decide if needs to be removed later
 		}
 
-		std::cout << msg << std::endl;
+		std::cout << msgFromCloud << std::endl;
 		if (code == CLOUDGOODCOMMAND)
 		{
 			Action emptyAction;
@@ -205,7 +205,7 @@ void Communicator::createFile(std::string msg, SOCKET client_sock)
 			notifyAllClients(repCode, client_sock, false);
 		}
 		else {
-			throw std::exception(msg.c_str());
+			throw std::exception(msgFromCloud.c_str());
 		}
 
 	}
@@ -217,7 +217,7 @@ void Communicator::deleteFile(std::string msg, SOCKET client_sock)
 	char recvbuf[1024];
 	size_t bufferSize;
 	int code = 0;
-	std::string msg;
+	std::string msgFromCloud;
 
 	Action reqDetail = deconstructReq(msg);
 
@@ -235,15 +235,15 @@ void Communicator::deleteFile(std::string msg, SOCKET client_sock)
 		std::string repCode = std::to_string(MC_DELETE_FILE_RESP) + reqDetail.data + ".txt";
 
 		//TODO check that deleted succefully
-		if (saveCloud)
+		if (CloudConnected)
 		{
 			writeMessage(3, reqDetail.data + ".txt", buffer, bufferSize);
 			send(m_cloudServerSocket, buffer, bufferSize, 0);
 
 			recv(m_cloudServerSocket, recvbuf, 1024, 0);
 			code = 0;
-			msg = "";
-			readMessage(recvbuf, code, msg);
+			msgFromCloud = "";
+			readMessage(recvbuf, code, msgFromCloud);
 		}
 		else
 		{
@@ -263,7 +263,7 @@ void Communicator::deleteFile(std::string msg, SOCKET client_sock)
 			Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
 		}
 		else {
-			throw std::exception(msg.c_str());
+			throw std::exception(msgFromCloud.c_str());
 		}
 
 	}
@@ -277,21 +277,21 @@ void Communicator::getFiles(std::string msg, SOCKET client_sock)
 	char recvbuf[1024];
 	size_t bufferSize;
 	int code = 0;
-	std::string msg;
+	std::string msgFromCloud;
 
 	Action reqDetail = deconstructReq(msg);
 
-	if (saveCloud)
+	if (CloudConnected)
 	{
 		writeMessage(4, "", buffer, bufferSize); // send empty request
 		send(m_cloudServerSocket, buffer, bufferSize, 0);
 
 		recv(m_cloudServerSocket, recvbuf, 1024, 0);
 		code = 0;
-		msg = "";
-		readMessage(recvbuf, code, msg); // message is in the same format as the fortmat that is sent to th user
-		fileOperationHandler.addFiles(msg, m_fileNames);
-		std::cout << msg << std::endl;
+		msgFromCloud = "";
+		readMessage(recvbuf, code, msgFromCloud); // message is in the same format as the fortmat that is sent to th user
+		fileOperationHandler.addFiles(msgFromCloud, m_fileNames);
+		std::cout << msgFromCloud << std::endl;
 	}
 	else
 	{
@@ -310,6 +310,147 @@ void Communicator::getFiles(std::string msg, SOCKET client_sock)
 	Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
 }
 
+void Communicator::getInitialContent(std::string msg, SOCKET client_sock)
+{
+	std::string repCode = std::to_string(MC_GET_FILES_RESP);
+
+	char* buffer = new char[1024];
+	char recvbuf[1024];
+	size_t bufferSize;
+	int code = 0;
+	std::string msgFromCloud;
+
+	std::string fileContent;
+
+	Action reqDetail = deconstructReq(msg);
+	Action emptyAction;
+
+	repCode = std::to_string(MC_INITIAL_RESP);
+
+	if (CloudConnected)
+	{
+		if (!m_filesData[".\\files\\" + reqDetail.data].empty())
+		{
+			fileContent = m_filesData[".\\files\\" + reqDetail.data];
+		}
+		else
+		{
+			writeMessage(2, reqDetail.data, buffer, bufferSize);
+			send(m_cloudServerSocket, buffer, bufferSize, 0);
+
+			recv(m_cloudServerSocket, recvbuf, 1024, 0);
+			code = 0;
+			msg = "";
+			readMessage(recvbuf, code, msg);
+			m_filesData[".\\files\\" + reqDetail.data] = msg;
+			std::cout << msg << std::endl;
+			fileContent = msg;
+			m_filesData[".\\files\\" + reqDetail.data] = msg;
+		}
+	}
+	else
+	{
+		fileContent = fileOperationHandler.readFromFile(".\\files\\" + reqDetail.data);
+		m_filesData[".\\files\\" + reqDetail.data] = fileContent;
+
+	}
+
+	//m_filesData[".\\files\\" + reqDetail.data] = fileContent; // delete when using the cloud communication
+
+	m_FileUpdate[".\\files\\" + reqDetail.data] = false;
+	// Convert the length to a string with exactly 5 digits
+	std::string lengthString = std::to_string(fileContent.length());
+	lengthString = std::string(5 - lengthString.length(), '0') + lengthString;
+
+	emptyAction.code = MC_INITIAL_REQUEST;
+	m_lastActionMap[".\\files\\" + reqDetail.data].push_back(emptyAction);
+
+	// Create the initialFileContent string
+	std::string initialFileContent = repCode + lengthString + fileContent;
+	Helper::sendData(client_sock, BUFFER(initialFileContent.begin(), initialFileContent.end()));
+
+}
+
+void Communicator::joinFile(std::string msg, SOCKET client_sock)
+{
+	Action reqDetail = deconstructReq(msg);
+
+	int fileId = m_database->getFileDetails(reqDetail.data).fileId;
+	std::string repCode;
+
+	if (!m_database->hasPermission(m_clients[client_sock]->getId(), m_database->getFileDetails(reqDetail.data).fileId)) {
+		// Send an error response indicating lack of permission
+		std::string errMsg = "You are not allowed to join this file" + reqDetail.dataLength + reqDetail.data;
+		throw std::exception(errMsg.c_str());
+	}
+
+	std::string lengthString = std::to_string((reqDetail.data.length()));
+	lengthString = std::string(5 - lengthString.length(), '0') + lengthString;
+	repCode = std::to_string(MC_APPROVE_JOIN_RESP) + lengthString + reqDetail.data;
+	Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
+
+	repCode = std::to_string(MC_JOIN_FILE_RESP);
+	m_clients[client_sock]->setFileName(".\\files\\" + reqDetail.data);
+
+	// Create the mutex for the file if it doesn't exist
+	m_fileMutexes.try_emplace(".\\files\\" + reqDetail.data);
+
+	m_usersOnFile[".\\files\\" + reqDetail.data].push_back(*m_clients[client_sock]);
+
+	lengthString = std::to_string((m_clients[client_sock]->getUsername().length()));
+	lengthString = std::string(5 - lengthString.length(), '0') + lengthString;
+	repCode += lengthString + m_clients[client_sock]->getUsername();
+
+	lengthString = std::to_string((reqDetail.data.length()));
+	lengthString = std::string(5 - lengthString.length(), '0') + lengthString;
+	repCode += lengthString + reqDetail.data;
+
+	notifyAllClients(repCode, client_sock, true);
+	notifyAllClients(repCode, client_sock, false);
+}
+
+void Communicator::leaveFile(std::string msg, SOCKET client_sock)
+{
+	Action reqDetail = deconstructReq(msg);
+	std::string repCode = std::to_string(MC_APPROVE_REQ_RESP);
+	Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
+
+	repCode = std::to_string(MC_LEAVE_FILE_RESP);
+	std::string fileName = m_clients[client_sock]->getFileName();
+
+	for (auto it = m_usersOnFile.begin(); it != m_usersOnFile.end(); ++it) {
+		// Iterate over the array of clients for each file
+		for (auto clientIt = it->second.begin(); clientIt != it->second.end(); ) {
+			if (clientIt->getId() == m_clients[client_sock]->getId()) {
+				clientIt = it->second.erase(clientIt);
+			}
+			else {
+				++clientIt;
+			}
+		}
+	}
+
+	std::string lengthString = std::to_string((m_clients[client_sock]->getUsername().length()));
+	lengthString = std::string(5 - lengthString.length(), '0') + lengthString;
+	repCode += lengthString + m_clients[client_sock]->getUsername();
+
+	lengthString = std::to_string((fileName.length()));
+	lengthString = std::string(5 - lengthString.length(), '0') + lengthString;
+	repCode += lengthString + fileName;
+
+	notifyAllClients(repCode, client_sock, true);
+	notifyAllClients(repCode, client_sock, false);
+
+	// Check if the user leaving was the last one
+	if (m_usersOnFile[fileName].empty()) {
+		// Delete the mutex and remove the file from m_usersOnFile
+		m_fileMutexes.erase(fileName);
+		m_usersOnFile.erase(fileName);
+		m_lastActionMap.erase(fileName);
+	}
+	m_clients[client_sock]->setFileName("");
+}
+
 void Communicator::handleNewClient(SOCKET client_sock)
 {
 	bool run = true;
@@ -323,8 +464,6 @@ void Communicator::handleNewClient(SOCKET client_sock)
 	std::string lengthString;
 	std::string initialFileContent;
 	FileDetail fileList;
-
-	bool hasPermission = false;
 	
 	char* bufferA = new char[1024];
 	char recvbufA[1024];
@@ -332,7 +471,7 @@ void Communicator::handleNewClient(SOCKET client_sock)
 	int codeA = 0;
 	std::string msgA;
 
-	if (saveCloud)
+	if (CloudConnected)
 	{
 		writeMessage(4, "", bufferA, bufferSizeA); // send empty request
 		send(m_cloudServerSocket, bufferA, bufferSizeA, 0);
@@ -407,49 +546,7 @@ void Communicator::handleNewClient(SOCKET client_sock)
 				break;
 
 			case MC_INITIAL_REQUEST: // get data from cloud
-				repCode = std::to_string(MC_INITIAL_RESP);
-
-				if (saveCloud)
-				{
-					if (!m_filesData[".\\files\\" + reqDetail.data].empty())
-					{
-						fileContent = m_filesData[".\\files\\" + reqDetail.data];
-					}
-					else
-					{
-						writeMessage(2, reqDetail.data, buffer, bufferSize);
-						send(m_cloudServerSocket, buffer, bufferSize, 0);
-
-						recv(m_cloudServerSocket, recvbuf, 1024, 0);
-						code = 0;
-						msg = "";
-						readMessage(recvbuf, code, msg);
-						m_filesData[".\\files\\" + reqDetail.data] = msg;
-						std::cout << msg << std::endl;
-						fileContent = msg;
-						m_filesData[".\\files\\" + reqDetail.data] = msg;
-					}
-				}
-				else 
-				{
-					fileContent = fileOperationHandler.readFromFile(".\\files\\" + reqDetail.data);
-					m_filesData[".\\files\\" + reqDetail.data] = fileContent;
-
-				}
-
-				//m_filesData[".\\files\\" + reqDetail.data] = fileContent; // delete when using the cloud communication
-
-				m_FileUpdate[".\\files\\" + reqDetail.data] = false;
-				// Convert the length to a string with exactly 5 digits
-				lengthString = std::to_string(fileContent.length());
-				lengthString = std::string(5 - lengthString.length(), '0') + lengthString;
-
-				emptyAction.code = MC_INITIAL_REQUEST;
-				m_lastActionMap[".\\files\\" + reqDetail.data].push_back(emptyAction);
-
-				// Create the initialFileContent string
-				initialFileContent = repCode + lengthString + fileContent;
-				Helper::sendData(client_sock, BUFFER(initialFileContent.begin(), initialFileContent.end()));
+				getInitialContent(newRequest, client_sock);
 				pass = false;
 				break;
 
@@ -570,79 +667,11 @@ void Communicator::handleNewClient(SOCKET client_sock)
 				break;
 			case MC_JOIN_FILE_REQUEST:
 				pass = false;
-				reqDetail.fileId = m_database->getFileDetails(reqDetail.data).fileId;
-
-				if (!m_database->hasPermission(m_clients[client_sock]->getId(), m_database->getFileDetails(reqDetail.data).fileId)) {
-					// Send an error response indicating lack of permission
-					repCode = std::to_string(MC_ERROR_RESP) + "You are not allowed to join this file" + reqDetail.dataLength 
-						+ reqDetail.data;
-					Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
-					break;
-				}
-				lengthString = std::to_string((reqDetail.data.length()));
-				lengthString = std::string(5 - lengthString.length(), '0') + lengthString;
-				repCode = std::to_string(MC_APPROVE_JOIN_RESP) + lengthString + reqDetail.data;
-				Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
-
-				repCode = std::to_string(MC_JOIN_FILE_RESP);
-				m_clients[client_sock]->setFileName(".\\files\\" + reqDetail.data);
-
-				// Create the mutex for the file if it doesn't exist
-				m_fileMutexes.try_emplace(".\\files\\" + reqDetail.data);
-
-				m_usersOnFile[".\\files\\" + reqDetail.data].push_back(*m_clients[client_sock]);
-
-				lengthString = std::to_string((m_clients[client_sock]->getUsername().length()));
-				lengthString = std::string(5 - lengthString.length(), '0') + lengthString;
-				repCode += lengthString + m_clients[client_sock]->getUsername();
-
-				lengthString = std::to_string((reqDetail.data.length()));
-				lengthString = std::string(5 - lengthString.length(), '0') + lengthString;
-				repCode += lengthString + reqDetail.data;
-
-				notifyAllClients(repCode, client_sock, true);
-				notifyAllClients(repCode, client_sock, false);
-				hasPermission = false;
+				joinFile(newRequest, client_sock);
 				break;
 			case MC_LEAVE_FILE_REQUEST:
-				repCode = std::to_string(MC_APPROVE_REQ_RESP);
-				Helper::sendData(client_sock, BUFFER(repCode.begin(), repCode.end()));
-
-				repCode = std::to_string(MC_LEAVE_FILE_RESP);
-				reqDetail.fileName = m_clients[client_sock]->getFileName();
-
-				for (auto it = m_usersOnFile.begin(); it != m_usersOnFile.end(); ++it) {
-					// Iterate over the array of clients for each file
-					for (auto clientIt = it->second.begin(); clientIt != it->second.end(); ) {
-						if (clientIt->getId() == m_clients[client_sock]->getId()) {
-							clientIt = it->second.erase(clientIt);
-						}
-						else {
-							++clientIt;
-						}
-					}
-				}
-
-				lengthString = std::to_string((m_clients[client_sock]->getUsername().length()));
-				lengthString = std::string(5 - lengthString.length(), '0') + lengthString;
-				repCode += lengthString + m_clients[client_sock]->getUsername();
-
-				lengthString = std::to_string((reqDetail.fileName.length()));
-				lengthString = std::string(5 - lengthString.length(), '0') + lengthString;
-				repCode += lengthString + reqDetail.fileName;
-
-				notifyAllClients(repCode, client_sock, true);
-				notifyAllClients(repCode, client_sock, false);
 				pass = false;
-
-				// Check if the user leaving was the last one
-				if (m_usersOnFile[reqDetail.fileName].empty()) {
-					// Delete the mutex and remove the file from m_usersOnFile
-					m_fileMutexes.erase(reqDetail.fileName);
-					m_usersOnFile.erase(reqDetail.fileName);
-					m_lastActionMap.erase(reqDetail.fileName);
-				}
-				m_clients[client_sock]->setFileName("");
+				leaveFile(newRequest, client_sock);
 				break;
 			case MC_DISCONNECT: // Handle disconnect request
 				run = false;
@@ -664,7 +693,7 @@ void Communicator::handleNewClient(SOCKET client_sock)
 					reqDetail = adjustIndexForSync(fileName, reqDetail);
 					reqDetail.fileName = fileName;
 
-					if (saveCloud)
+					if (CloudConnected)
 					{
 						updateFileOnServer(fileName, reqDetail);
 					}
@@ -708,7 +737,7 @@ void Communicator::handleNewClient(SOCKET client_sock)
 void Communicator::cloudCommunicationFunction(/* Parameters for communication */) {
 	try
 	{
-		while (saveCloud) {
+		while (CloudConnected) {
 			if (Cloud)
 			{
 				for (auto& [fileName, updated] : m_FileUpdate) {
@@ -1118,7 +1147,6 @@ void Communicator::updateFileOnServerOld(const std::string& filePath, const Acti
 		file.close();
 	}
 }
-
 
 void Communicator::updateFileOnServer(const std::string& filePath, const Action& reqDetail)
 {
