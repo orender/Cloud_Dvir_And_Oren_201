@@ -164,7 +164,11 @@ class Program
             k = s.Receive(b);
             msg = "";
             if(BinaryProtocol.ReadMessage(b, out code, out msg)){
-                Console.WriteLine("message was: " + msg);
+                Console.WriteLine("message code was: " + code + ", message was: " + msg);
+                if(msg == "")
+                {
+                    return;
+                }
                 switch(code) 
                 {
                     case (int)Commands.save:
