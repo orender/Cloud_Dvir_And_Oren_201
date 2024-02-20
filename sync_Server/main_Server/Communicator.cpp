@@ -329,8 +329,9 @@ void Communicator::getInitialContent(std::string msg, SOCKET client_sock)
 
 	if (CloudConnected)
 	{
-		if (!m_filesData[".\\files\\" + reqDetail.data].empty())
+		/*if (!m_filesData[".\\files\\" + reqDetail.data].empty())
 		{
+
 			fileContent = m_filesData[".\\files\\" + reqDetail.data];
 		}
 		else
@@ -346,7 +347,17 @@ void Communicator::getInitialContent(std::string msg, SOCKET client_sock)
 			std::cout << msg << std::endl;
 			fileContent = msg;
 			m_filesData[".\\files\\" + reqDetail.data] = msg;
-		}
+		}*/
+		writeMessage(2, reqDetail.data, buffer, bufferSize);
+		send(m_cloudServerSocket, buffer, bufferSize, 0);
+
+		recv(m_cloudServerSocket, recvbuf, 1024, 0);
+		code = 0;
+		msg = "";
+		readMessage(recvbuf, code, msg);
+		m_filesData[".\\files\\" + reqDetail.data] = msg;
+		std::cout << msg << std::endl;
+		fileContent = msg;
 	}
 	else
 	{
@@ -751,13 +762,13 @@ void Communicator::cloudCommunicationFunction(/* Parameters for communication */
 							std::string repCode = lengthString + fileName.substr(8);
 
 							writeMessage(1, repCode + m_filesData[fileName], buffer, bufferSize);
-							//send(m_cloudServerSocket, buffer, bufferSize, 0);
+							send(m_cloudServerSocket, buffer, bufferSize, 0);
 
 							char recvbuf[1024];
-							//recv(m_cloudServerSocket, recvbuf, 1024, 0);
+							recv(m_cloudServerSocket, recvbuf, 1024, 0);
 							int code = 0;
 							std::string msg = "";
-							//readMessage(recvbuf, code, msg);
+							readMessage(recvbuf, code, msg);
 
 							std::cout << code << ", " << msg << std::endl;
 						}
