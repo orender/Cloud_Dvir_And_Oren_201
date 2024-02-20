@@ -148,14 +148,14 @@ void splitString(const std::string& input, std::string& first, std::string& seco
 std::string dataSplitter::getFileData(std::string file_name)
 {
     std::string file_data = "";
-
+    std::cout << "std\n";
     // Execute a SELECT query and print the results
     std::string scom = "SELECT id, tablename FROM files WHERE name = '" + file_name + "';";
     const char* selectQuery = scom.c_str();
     sqlite3_stmt* statement;
     std::string table_name = "";
     int id = -1;
-
+    std::cout << "std\n";
     if (sqlite3_prepare_v2(db, selectQuery, -1, &statement, 0) == SQLITE_OK) {
         while (sqlite3_step(statement) == SQLITE_ROW) {
             id = sqlite3_column_int(statement, 0);
@@ -166,14 +166,16 @@ std::string dataSplitter::getFileData(std::string file_name)
         sqlite3_finalize(statement);
     }
     else {
-        std::cerr << "Query execution failed\n";
+        std::cerr << "Query execution failed: " << sqlite3_errmsg(db) << "\n";
     }
+    std::cout << "std\n";
     std::string temp = "";
-    scom = "SELECT * FROM " + table_name + ";";
+    scom = "SELECT * FROM '" + table_name + "';";
     const char* selectQueryBlobs = scom.c_str();
     sqlite3_stmt* statementBlobs;
     int blobId = -1;
     std::string c1, c2;
+    std::cout << "std\n";
     if (sqlite3_prepare_v2(db, selectQueryBlobs, -1, &statementBlobs, 0) == SQLITE_OK) {
         while (sqlite3_step(statementBlobs) == SQLITE_ROW) {
             blobId = sqlite3_column_int(statementBlobs, 0);
@@ -181,6 +183,7 @@ std::string dataSplitter::getFileData(std::string file_name)
             std::string containers_names(container);
             splitString(containers_names, c1, c2);
             temp = containers[c1].getBlob(createSixDigitString(id, blobId));
+            std::cout << "just pulled a baddy. wanna see? here: " << temp << std::endl;
             if (temp == failGet)
             {
                 temp = containers[c2].getBlob(createSixDigitString(id, blobId));
@@ -193,12 +196,13 @@ std::string dataSplitter::getFileData(std::string file_name)
             else {
                 file_data += temp;
             }
+            std::cout << "std\n";
         }
         //sqlite3_finalize(statement);
         return file_data;
     }
     else {
-        std::cerr << "Query execution failed\n";
+        std::cerr << "Query execution failed: " << sqlite3_errmsg(db) << "\n";
     }
     return std::string();
 }
@@ -224,7 +228,7 @@ bool dataSplitter::deleteFile(std::string file_name)
         sqlite3_finalize(statement);
     }
     else {
-        std::cerr << "Query execution failed\n";
+        std::cerr << "Query execution failed: " << sqlite3_errmsg(db) << "\n";
     }
     std::string temp = "";
     scom = "SELECT * FROM '" + table_name + "';";
@@ -250,7 +254,7 @@ bool dataSplitter::deleteFile(std::string file_name)
             return false;
         }
 
-        scom = "DROP TABLE " + table_name + ";";
+        scom = "DROP TABLE '" + table_name + "';";
         if (sqlite3_exec(db, scom.c_str(), 0, 0, 0) != SQLITE_OK)
         {
             return false;
@@ -259,7 +263,7 @@ bool dataSplitter::deleteFile(std::string file_name)
         return true;
     }
     else {
-        std::cerr << "Query execution failed\n";
+        std::cerr << "Query execution failed: " << sqlite3_errmsg(db) << "\n";
     }
 
 
@@ -290,7 +294,7 @@ std::string dataSplitter::getFiles()
         sqlite3_finalize(statement);
     }
     else {
-        std::cerr << "Query execution failed\n";
+        std::cerr << "Query execution failed: " << sqlite3_errmsg(db) << "\n";
         return std::string();
     }
     return files;

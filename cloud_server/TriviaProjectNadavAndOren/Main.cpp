@@ -43,7 +43,6 @@ int main()
     WSAStartup(MAKEWORD(2, 2), &wsaData);
     
     dataSplitter ds = dataSplitter("test.db");
-    
 
     SOCKET listner = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     SOCKET m_syncServerSocket;
@@ -121,7 +120,11 @@ int main()
             case (int)getBlobCode:
 
                 buffer = new char[1024];
+                std::cout << "file requested: " << msg << std::endl;
                 a = ds.getFileData(msg);
+
+                std::cout << "file data:\n " << a << std::endl;
+
                 originalMessage.code = GOODCOMMAND;
                 strcpy(originalMessage.message, a.c_str());
                 serializeProtocolMessage(originalMessage, buffer);
@@ -189,7 +192,7 @@ int main()
     }
     catch (const std::exception& e)
     {
-        //delete &ds;
+        delete &ds;
     }
     
     WSACleanup();
