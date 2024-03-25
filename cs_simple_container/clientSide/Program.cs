@@ -139,6 +139,63 @@ enum Commands
 
 class Program
 {
+    // Constant key and IV
+    private static readonly byte[] key = new byte[]
+    {
+        0x2B, 0x7E, 0x15, 0x16, 0x28, 0xAE, 0xD2, 0xA6,
+        0xAB, 0xF7, 0x97, 0x22, 0x8A, 0x5E, 0x65, 0x17
+    };
+    private static readonly byte[] iv = new byte[]
+    {
+        0x3A, 0xD7, 0x95, 0x22, 0x4F, 0x60, 0x37, 0x8A,
+        0xA1, 0x2B, 0x22, 0x2A, 0x33, 0x66, 0x7A, 0x79
+    };
+
+    public static byte[] Encrypt(string plainText)
+    {
+        using (Aes aesAlg = Aes.Create())
+        {
+            aesAlg.Key = key;
+            aesAlg.IV = iv;
+
+            ICryptoTransform encryptor = aesAlg.CreateEncryptor(aesAlg.Key, aesAlg.IV);
+
+            using (MemoryStream msEncrypt = new MemoryStream())
+            {
+                using (CryptoStream csEncrypt = new CryptoStream(msEncrypt, encryptor, CryptoStreamMode.Write))
+                {
+                    using (StreamWriter swEncrypt = new StreamWriter(csEncrypt))
+                    {
+                        swEncrypt.Write(plainText);
+                    }
+                    return msEncrypt.ToArray();
+                }
+            }
+        }
+    }
+
+    public static string Decrypt(byte[] cipherText)
+    {
+        using (Aes aesAlg = Aes.Create())
+        {
+            aesAlg.Key = key;
+            aesAlg.IV = iv;
+
+            ICryptoTransform decryptor = aesAlg.CreateDecryptor(aesAlg.Key, aesAlg.IV);
+
+            using (MemoryStream msDecrypt = new MemoryStream(cipherText))
+            {
+                using (CryptoStream csDecrypt = new CryptoStream(msDecrypt, decryptor, CryptoStreamMode.Read))
+                {
+                    using (StreamReader srDecrypt = new StreamReader(csDecrypt))
+                    {
+                        return srDecrypt.ReadToEnd();
+                    }
+                }
+            }
+        }
+    }
+
     static void Main()
     {
         var dbHelper = new simpleDbHelper("test.db");
@@ -186,10 +243,12 @@ class Program
                             data = msg.Substring(6);
                             dbHelper.ExecuteNonQuery("INSERT INTO BLOBS (ID, DATA) VALUES (@Value1, @Value2)",
                                 new SQLiteParameter("@Value1", id),
-                                new SQLiteParameter("@Value2", data));
+                                new SQLiteParameter("@Value2", Convert.ToBase64String(Encrypt(data))));
                             msg = "data saved";
                             code = 420;
                             s.Send(BinaryProtocol.WriteMessage(code, msg));
+
+                            Console.WriteLine("saved: " + Convert.ToBase64String(Encrypt(data)));
                         }
                         break;
                     case (int)Commands.get:
@@ -198,7 +257,7 @@ class Program
                         foreach (DataRow row in result.Rows)
                         {
                             Console.WriteLine($"Column1: {row["ID"]}, Column2: {row["DATA"]}");
-                            msg = $"{row["DATA"]}";
+                            msg = Decrypt(Convert.FromBase64String($"{row["DATA"]}"));
                             code = 420;
                             s.Send(BinaryProtocol.WriteMessage(code, msg));
                         }
