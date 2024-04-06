@@ -73,7 +73,7 @@ private:
     IDatabase* m_database;
 
     bool CloudConnected;
-    bool Cloud;
+    bool CloudUpdate;
 public:
     // Constructor
     Communicator();

@@ -717,7 +717,7 @@ void Communicator::handleNewClient(SOCKET client_sock)
 					reqDetail.timestamp = getCurrentTimestamp();
 					m_lastActionMap[fileName].push_back(reqDetail);
 					m_FileUpdate[fileName] = true;
-					Cloud = true;
+					CloudUpdate = true;
 				}// lock goes out of scope, releasing the lock
 
 			}
@@ -749,7 +749,7 @@ void Communicator::cloudCommunicationFunction(/* Parameters for communication */
 	try
 	{
 		while (CloudConnected) {
-			if (Cloud)
+			if (CloudUpdate)
 			{
 				for (auto& [fileName, updated] : m_FileUpdate) {
 					if (updated) {
@@ -775,7 +775,7 @@ void Communicator::cloudCommunicationFunction(/* Parameters for communication */
 						if (m_usersOnFile[fileName].empty()) {
 							m_filesData.erase(fileName);
 							m_FileUpdate.erase(fileName);
-							Cloud = false;
+							CloudUpdate = false;
 							if (m_FileUpdate.empty())
 							{
 								break;
@@ -790,7 +790,7 @@ void Communicator::cloudCommunicationFunction(/* Parameters for communication */
 						if (m_usersOnFile[fileName].empty()) {
 							m_filesData.erase(fileName);
 							m_FileUpdate.erase(fileName);
-							Cloud = false;
+							CloudUpdate = false;
 						}
 						if (m_FileUpdate.empty())
 						{
@@ -883,7 +883,7 @@ Action Communicator::adjustIndexForSync(const std::string& fileName, Action reqD
 				reqDetail.index = adjustedIndex;
 				reqDetail.msg = updatedAction;
 			}
-			else if(reqDetail.timestamp > action.timestamp)
+			else if(reqDetail.timestamp > action.timestamp + 5)
 			{
 				it = lastActions.erase(it);
 			}

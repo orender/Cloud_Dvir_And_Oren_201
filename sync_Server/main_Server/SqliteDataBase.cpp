@@ -184,7 +184,7 @@ bool SqliteDataBase::send_data(sqlite3* db, std::string msg, std::list<std::stri
 
 bool SqliteDataBase::open()
 {
-	std::string dbFileName = "syncDB.sqlite";
+	std::string dbFileName = "syncDBTemp.sqlite";
 	int file_exist = _access(dbFileName.c_str(), 0);
 	int res = sqlite3_open(dbFileName.c_str(), &_db);
 
